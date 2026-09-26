@@ -1,0 +1,142 @@
+/* Fluent / Windows 11 look: system font, 8px corners, one accent, light and dark like Windows. */
+:root {
+  color-scheme: light dark;
+  --bg: #f3f3f3;
+  --card: rgb(255 255 255 / 0.7);
+  --card-solid: #ffffff;
+  --control: rgb(255 255 255 / 0.7);
+  --control-hover: rgb(249 249 249 / 0.9);
+  --stroke: rgb(0 0 0 / 0.08);
+  --shadow: rgb(0 0 0 / 0.12);
+  --text: #1a1a1a;
+  --text-2: #5c5c5c;
+  --text-3: #a0a0a0;
+  --accent: #005fb8;
+  --accent-hover: #1a6fc0;
+  --accent-text: #005fb8;
+  --accent-soft: rgb(0 95 184 / 0.12);
+  --on-accent: #ffffff;
+  --ok: #0f7b0f;
+  --ok-soft: rgb(15 123 15 / 0.12);
+  --warn: #9d5d00;
+  --warn-soft: rgb(157 93 0 / 0.12);
+  --error: #c42b1c;
+  --preview-bg: rgb(0 0 0 / 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #202020;
+    --card: rgb(255 255 255 / 0.05);
+    --card-solid: #2d2d2d;
+    --control: rgb(255 255 255 / 0.06);
+    --control-hover: rgb(255 255 255 / 0.09);
+    --stroke: rgb(255 255 255 / 0.08);
+    --shadow: rgb(0 0 0 / 0.4);
+    --text: #ffffff;
+    --text-2: #c5c5c5;
+    --text-3: #6e6e6e;
+    --accent: #60cdff;
+    --accent-hover: #5ab8e6;
+    --accent-text: #60cdff;
+    --accent-soft: rgb(96 205 255 / 0.14);
+    --on-accent: #000000;
+    --ok: #6ccb5f;
+    --ok-soft: rgb(108 203 95 / 0.14);
+    --warn: #fce100;
+    --warn-soft: rgb(252 225 0 / 0.1);
+    --error: #ff99a4;
+    --preview-bg: rgb(0 0 0 / 0.3);
+  }
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+/* Windows 11: the window paints Mica behind a transparent page. */
+html.mica,
+html.mica body {
+  background: transparent;
+}
+
+button,
+select,
+input {
+  font-family: inherit;
+}
+
+.card {
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+}
+
+.icon-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.icon-btn.small {
+  width: 28px;
+  height: 28px;
+}
+.icon-btn:hover {
+  background: var(--control-hover);
+}
+
+.text-btn {
+  border: 0;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+.text-btn:hover {
+  background: var(--control-hover);
+}
+
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+
+/* Thin overlay-like scrollbar, as in Windows 11 apps. */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background: var(--text-3) padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-2);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

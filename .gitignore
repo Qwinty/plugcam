@@ -9,3 +9,5 @@ vcam/**/Win32/
 vcam/**/Release/
 vcam/**/Debug/
 vcam/dist/
+/dist/
+src-tauri/gen/

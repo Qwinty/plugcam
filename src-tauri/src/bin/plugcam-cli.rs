@@ -148,6 +148,7 @@ fn run(args: Args) -> Result<(), String> {
             camera: args.camera.clone(),
             mirror,
             dump: args.dump,
+            preview: None,
         },
         vcam,
         |_| {},

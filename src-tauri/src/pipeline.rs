@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use crate::adb::Adb;
 use crate::decode::H264Decoder;
 use crate::frame::FrameConverter;
+use crate::preview::PreviewSlot;
 use crate::scrcpy::protocol::{self, ControlMessage, Packet};
 use crate::scrcpy::server::{self, CameraParams, Session};
 use crate::vcam::VirtualCamera;
@@ -22,6 +23,7 @@ const FIRST_FRAME_TIMEOUT: Duration = Duration::from_secs(6);
 /// A camera streams continuously; this much silence means the link is gone.
 const STALL_TIMEOUT: Duration = Duration::from_secs(3);
 const RETRY_DELAY: Duration = Duration::from_secs(2);
+const NO_PICTURE_RETRY_DELAY: Duration = Duration::from_secs(15);
 const STATS_PERIOD: Duration = Duration::from_secs(5);
 
 pub struct PipelineConfig {
@@ -33,14 +35,20 @@ pub struct PipelineConfig {
     pub mirror: bool,
     /// Record the raw video stream (packets after the codec id) for test fixtures.
     pub dump: Option<PathBuf>,
+    /// Where to offer frames for the app window's preview.
+    pub preview: Option<Arc<PreviewSlot>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Status {
     WaitingForDevice,
     Connecting { serial: String },
-    Streaming { device: String, width: u32, height: u32 },
-    Error(String),
+    Streaming { serial: String, device: String, width: u32, height: u32 },
+    /// The selected camera streams nothing; retrying will not help (and may upset the
+    /// phone's camera service for a while, docs/stage2.md).
+    NoPicture { serial: String },
+    Error { message: String },
     Stopped,
 }
 
@@ -61,7 +69,7 @@ struct Shared {
 
 pub struct Pipeline {
     shared: Arc<Shared>,
-    thread: Option<JoinHandle<()>>,
+    thread: Option<JoinHandle<VirtualCamera>>,
 }
 
 impl Pipeline {
@@ -97,19 +105,19 @@ impl Pipeline {
         *self.shared.stats.lock().unwrap()
     }
 
-    pub fn stop(mut self) {
-        self.shutdown();
+    /// Stops streaming and gives the virtual camera back, so it can be reused for the next
+    /// pipeline without disappearing from the apps that have it open.
+    pub fn stop(mut self) -> Option<VirtualCamera> {
+        self.shutdown()
     }
 
-    fn shutdown(&mut self) {
+    fn shutdown(&mut self) -> Option<VirtualCamera> {
         self.shared.stop.store(true, Ordering::SeqCst);
         // Unblocks the read the pipeline thread may be sitting in.
         if let Some(s) = self.shared.video.lock().unwrap().as_ref() {
             let _ = s.shutdown(Shutdown::Both);
         }
-        if let Some(t) = self.thread.take() {
-            let _ = t.join();
-        }
+        self.thread.take().and_then(|t| t.join().ok())
     }
 }
 
@@ -119,7 +127,7 @@ impl Drop for Pipeline {
     }
 }
 
-fn run(config: PipelineConfig, vcam: VirtualCamera, shared: &Shared, on_status: impl Fn(&Status)) {
+fn run(config: PipelineConfig, vcam: VirtualCamera, shared: &Shared, on_status: impl Fn(&Status)) -> VirtualCamera {
     let mut last_status = None;
     let mut status = |s: Status| {
         if last_status.as_ref() != Some(&s) {
@@ -147,8 +155,8 @@ fn run(config: PipelineConfig, vcam: VirtualCamera, shared: &Shared, on_status: 
                 pause(Duration::from_secs(1));
                 continue;
             }
-            Err(e) => {
-                status(Status::Error(e));
+            Err(message) => {
+                status(Status::Error { message });
                 pause(RETRY_DELAY);
                 continue;
             }
@@ -158,7 +166,7 @@ fn run(config: PipelineConfig, vcam: VirtualCamera, shared: &Shared, on_status: 
         let session = match server::start(&config.adb, &serial, &config.server_file, &config.camera) {
             Ok(s) => s,
             Err(e) => {
-                status(Status::Error(e.to_string()));
+                status(Status::Error { message: e.to_string() });
                 pause(RETRY_DELAY);
                 continue;
             }
@@ -166,7 +174,7 @@ fn run(config: PipelineConfig, vcam: VirtualCamera, shared: &Shared, on_status: 
         *shared.video.lock().unwrap() = session.video.try_clone().ok();
         *shared.control.lock().unwrap() = session.control.try_clone().ok();
 
-        let result = stream(&session, &config, &vcam, &mut converter, shared, &mut status);
+        let result = stream(&session, &serial, &config, &vcam, &mut converter, shared, &mut status);
 
         *shared.video.lock().unwrap() = None;
         *shared.control.lock().unwrap() = None;
@@ -178,12 +186,31 @@ fn run(config: PipelineConfig, vcam: VirtualCamera, shared: &Shared, on_status: 
             break;
         }
         vcam.send_frame(converter.dim()); // make the frozen picture look disconnected
-        if let Err(e) = result {
-            status(Status::Error(format!("{e}{problems}")));
+        match result {
+            Ok(()) => pause(RETRY_DELAY),
+            Err(StreamEnd::NoPicture) => {
+                status(Status::NoPicture { serial });
+                pause(NO_PICTURE_RETRY_DELAY);
+            }
+            Err(StreamEnd::Broken(e)) => {
+                status(Status::Error { message: format!("{e}{problems}") });
+                pause(RETRY_DELAY);
+            }
         }
-        pause(RETRY_DELAY);
     }
     status(Status::Stopped);
+    vcam
+}
+
+enum StreamEnd {
+    NoPicture,
+    Broken(String),
+}
+
+impl From<String> for StreamEnd {
+    fn from(e: String) -> Self {
+        StreamEnd::Broken(e)
+    }
 }
 
 fn pick_device(config: &PipelineConfig) -> Result<Option<String>, String> {
@@ -201,12 +228,13 @@ fn pick_device(config: &PipelineConfig) -> Result<Option<String>, String> {
 /// Reads the whole stream of one session. Returns `Ok` when stopped on request.
 fn stream(
     session: &Session,
+    serial: &str,
     config: &PipelineConfig,
     vcam: &VirtualCamera,
     converter: &mut FrameConverter,
     shared: &Shared,
     status: &mut impl FnMut(Status),
-) -> Result<(), String> {
+) -> Result<(), StreamEnd> {
     let socket = session.video.try_clone().map_err(|e| e.to_string())?;
     socket.set_read_timeout(Some(FIRST_FRAME_TIMEOUT)).map_err(|e| e.to_string())?;
     let dump = match &config.dump {
@@ -228,10 +256,8 @@ fn stream(
             Ok(p) => p,
             Err(_) if shared.stop.load(Ordering::SeqCst) => return Ok(()),
             // Timed out, or the server gave up (some listed lenses never produce a frame).
-            Err(_) if frames == 0 => {
-                return Err("the camera sent no picture; this lens may not work over scrcpy".into());
-            }
-            Err(e) => return Err(format!("video stream ended: {e}")),
+            Err(_) if frames == 0 => return Err(StreamEnd::NoPicture),
+            Err(e) => return Err(format!("video stream ended: {e}").into()),
         };
 
         let started = Instant::now();
@@ -239,7 +265,7 @@ fn stream(
             Packet::Session { width, height } => {
                 log::info!("session {width}x{height}");
                 decoder = Some(H264Decoder::new(width, height).map_err(|e| e.to_string())?);
-                status(Status::Streaming { device: session.device_name.clone(), width, height });
+                status(Status::Streaming { serial: serial.to_string(), device: session.device_name.clone(), width, height });
             }
             Packet::Config(data) => {
                 if let Some(d) = decoder.as_mut() {
@@ -252,6 +278,9 @@ fn stream(
                 d.decode(&data, pts_us, &mut |picture| match converter.convert(picture) {
                     Ok(bgr) => {
                         vcam.send_frame(bgr);
+                        if let Some(p) = &config.preview {
+                            p.offer(bgr, vcam.width(), vcam.height());
+                        }
                         frames += 1;
                         period_frames += 1;
                     }
@@ -259,7 +288,7 @@ fn stream(
                 })
                 .map_err(|e| e.to_string())?;
                 if let Some(e) = frame_error.take() {
-                    return Err(e);
+                    return Err(e.into());
                 }
                 if frames > 0 && !stall_timeout_set {
                     socket.set_read_timeout(Some(STALL_TIMEOUT)).map_err(|e| e.to_string())?;
