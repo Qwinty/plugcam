@@ -59,6 +59,7 @@ pub fn run() {
             update_settings,
             set_torch,
             zoom,
+            set_zoom,
             dismiss_notice,
             subscribe_preview,
             set_preview_active,
@@ -144,6 +145,11 @@ fn set_torch(c: Ctl, on: bool) -> Result<(), String> {
 #[tauri::command]
 fn zoom(c: Ctl, zoom_in: bool) -> Result<(), String> {
     c.zoom(zoom_in)
+}
+
+#[tauri::command]
+fn set_zoom(c: Ctl, value: f32) -> Result<(), String> {
+    c.set_zoom(value)
 }
 
 #[tauri::command]

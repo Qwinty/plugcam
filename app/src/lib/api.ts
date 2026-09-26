@@ -41,6 +41,7 @@ export interface CameraView {
   facing: string;
   megapixels: number;
   zoomMin: number | null;
+  zoomMax: number | null;
 }
 
 export type Notice = { kind: "lensHidden"; id: string } | { kind: "startFailed"; message: string };
@@ -55,6 +56,9 @@ export interface Snapshot {
   smoothAvailable: boolean;
   torch: boolean;
   fps: number;
+  /** As the phone last reported it. */
+  zoom: number;
+  zoomRange: [number, number] | null;
   problem: string | null;
   notice: Notice | null;
   mica: boolean;
@@ -66,6 +70,7 @@ export const setCamera = (on: boolean) => invoke<void>("set_camera", { on });
 export const updateSettings = (patch: Partial<Settings>) => invoke<void>("update_settings", { patch });
 export const setTorch = (on: boolean) => invoke<void>("set_torch", { on });
 export const zoom = (zoomIn: boolean) => invoke<void>("zoom", { zoomIn });
+export const setZoom = (value: number) => invoke<void>("set_zoom", { value });
 export const dismissNotice = () => invoke<void>("dismiss_notice");
 export const openUrl = (url: string) => invoke<void>("open_url", { url });
 export const setPreviewActive = (active: boolean) => invoke<void>("set_preview_active", { active });

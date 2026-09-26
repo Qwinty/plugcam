@@ -39,6 +39,8 @@ pub struct PipelineConfig {
     pub dump: Option<PathBuf>,
     /// Where to offer frames for the app window's preview.
     pub preview: Option<Arc<PreviewSlot>>,
+    /// Told the camera zoom whenever the phone sets it.
+    pub on_zoom: Option<Arc<dyn Fn(f32) + Send + Sync>>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -181,6 +183,10 @@ fn run(config: PipelineConfig, vcam: VirtualCamera, shared: &Shared, on_status: 
         };
         *shared.video.lock().unwrap() = session.video.try_clone().ok();
         *shared.control.lock().unwrap() = session.control.try_clone().ok();
+        if let Some(on_zoom) = &config.on_zoom {
+            let on_zoom = on_zoom.clone();
+            session.log.on_zoom(move |z| on_zoom(z));
+        }
 
         let result = stream(&session, &serial, &config, &vcam, &mut converter, shared, &mut status);
 

@@ -19,6 +19,7 @@
   import * as api from "./api";
   import type { Snapshot, CameraView, Quality } from "./api";
   import { t } from "./i18n";
+  import { holdRepeat } from "./holdRepeat";
   import { statusInfo } from "./status";
   import Segmented from "./Segmented.svelte";
   import Select from "./Select.svelte";
@@ -34,6 +35,17 @@
   const lenses = $derived(snap.cameras.filter((c) => c.facing === s.facing));
   const ready = $derived(snap.device?.state === "device" && !snap.problem);
   const torchAvailable = $derived(streaming && s.facing === "back");
+
+  // Quick zoom values the running lens can reach, like the 1x/2x/5x of a camera app.
+  const zoomPresets = $derived(
+    snap.zoomRange ? [0.5, 1, 2, 5].filter((z) => z >= snap.zoomRange![0] - 0.01 && z <= snap.zoomRange![1] + 0.01) : [1, 2, 5],
+  );
+  // Steps are ~6% apart, so a preset is reached within ~3%.
+  const atZoom = (z: number) => Math.abs(snap.zoom / z - 1) < 0.04;
+  // 1.948 is what "2x" gets on the step grid; show it as the 2,0x its button promises.
+  const shownZoom = $derived(streaming ? (zoomPresets.find(atZoom) ?? snap.zoom) : 1);
+  const zoomFormat = $derived(new Intl.NumberFormat(snap.language, { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+  const presetFormat = $derived(new Intl.NumberFormat(snap.language, { maximumFractionDigits: 1 }));
 
   function lensLabel(c: CameraView, i: number) {
     const name =
@@ -162,19 +174,33 @@
         checked={snap.torch}
         disabled={!torchAvailable}
         onchange={(v) => api.setTorch(v)} />
-      <div class="row" class:off={!streaming}>
-        <span class="row-text">
-          <span>{t("ctl.zoom")}</span>
-          {#if !streaming}<span class="row-hint">{t("ctl.needsStream")}</span>{/if}
-        </span>
-        <div class="tools">
-          <button class="icon-btn" disabled={!streaming} title={t("ctl.zoomOut")} aria-label={t("ctl.zoomOut")} onclick={() => api.zoom(false)}>
-            <ZoomOut size={20} />
-          </button>
-          <button class="icon-btn" disabled={!streaming} title={t("ctl.zoomIn")} aria-label={t("ctl.zoomIn")} onclick={() => api.zoom(true)}>
-            <ZoomIn size={20} />
-          </button>
+      <div class="row zoom" class:off={!streaming}>
+        <div class="zoom-top">
+          <span class="row-text">
+            <span>{t("ctl.zoom")}</span>
+            {#if !streaming}<span class="row-hint">{t("ctl.needsStream")}</span>{/if}
+          </span>
+          <div class="tools">
+            <button class="icon-btn" disabled={!streaming} title={t("ctl.zoomOut")} aria-label={t("ctl.zoomOut")} use:holdRepeat={() => api.zoom(false)}>
+              <ZoomOut size={20} />
+            </button>
+            <output class="zoom-value" aria-live="polite">{zoomFormat.format(shownZoom)}×</output>
+            <button class="icon-btn" disabled={!streaming} title={t("ctl.zoomIn")} aria-label={t("ctl.zoomIn")} use:holdRepeat={() => api.zoom(true)}>
+              <ZoomIn size={20} />
+            </button>
+          </div>
         </div>
+        {#if streaming}
+          <div class="presets">
+            {#each zoomPresets as z (z)}
+              <button
+                class="preset"
+                aria-pressed={atZoom(z)}
+                aria-label={t("ctl.zoomTo", { v: `${presetFormat.format(z)}×` })}
+                onclick={() => api.setZoom(z)}>{presetFormat.format(z)}×</button>
+            {/each}
+          </div>
+        {/if}
       </div>
     </div>
   </section>
@@ -318,8 +344,64 @@
     display: flex;
     gap: 4px;
   }
-  .row.off > .row-text > span:first-child {
+  .row.off .row-text > span:first-child {
     color: var(--text-3);
+  }
+  .row.zoom {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding-block: 6px 8px;
+  }
+  .zoom-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 32px;
+  }
+  .zoom .tools {
+    align-items: center;
+  }
+  .zoom-value {
+    min-width: 44px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .off .zoom-value {
+    color: var(--text-3);
+  }
+  .presets {
+    display: flex;
+    gap: 6px;
+  }
+  .preset {
+    min-width: 44px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 14px;
+    border: 1px solid var(--stroke);
+    background: var(--control);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition-property: scale, background-color, color;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+  .preset:hover {
+    background: var(--control-hover);
+  }
+  .preset:active {
+    scale: 0.96;
+  }
+  .preset[aria-pressed="true"] {
+    border-color: transparent;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-weight: 600;
   }
   .quality-hint {
     margin: 0 2px;

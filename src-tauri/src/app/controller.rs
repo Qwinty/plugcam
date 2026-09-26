@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
@@ -20,12 +20,15 @@ use crate::pipeline::{Pipeline, PipelineConfig, Status};
 use crate::preview::PreviewSlot;
 use crate::scrcpy::cameras::{self, CameraInfo, Quality};
 use crate::scrcpy::protocol::ControlMessage;
-use crate::scrcpy::server;
+use crate::scrcpy::{server, zoom};
 use crate::settings::Settings;
 use crate::vcam::VirtualCamera;
 use crate::{platform, resources};
 
 const DEVICE_POLL: Duration = Duration::from_millis(1500);
+/// After this long without zoom messages, the zoom the phone reported is trusted over the
+/// steps counted here (a message sent before the camera was ready is dropped by the server).
+const ZOOM_RESYNC: Duration = Duration::from_secs(1);
 
 /// What the window needs to draw itself. Sent whole on every change (it is small).
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -42,6 +45,10 @@ pub struct Snapshot {
     pub smooth_available: bool,
     pub torch: bool,
     pub fps: f32,
+    /// Camera zoom as the phone last reported it.
+    pub zoom: f32,
+    /// Zoom range of the running lens, when known.
+    pub zoom_range: Option<(f32, f32)>,
     /// Something that stops the app from working at all (missing adb, camera not installed…).
     pub problem: Option<String>,
     /// One-off information, e.g. a lens that was hidden.
@@ -70,6 +77,7 @@ pub struct CameraView {
     pub facing: String,
     pub megapixels: f32,
     pub zoom_min: Option<f32>,
+    pub zoom_max: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -78,6 +86,12 @@ pub enum Notice {
     LensHidden { id: String },
     /// The camera could not be turned on; pressing the button again may work.
     StartFailed { message: String },
+}
+
+/// What a pipeline reports, tagged with its generation.
+enum Event {
+    Status(Status),
+    Zoom(f32),
 }
 
 /// Per-phone facts fetched once per connection.
@@ -102,6 +116,11 @@ struct State {
     fetching: Vec<String>,
     torch: bool,
     fps: f32,
+    /// Reported by the phone; also passed to the next pipeline so a restart keeps it.
+    zoom: f32,
+    /// The step counted after the last zoom messages, and when they were sent.
+    zoom_sent: Option<(i32, Instant)>,
+    zoom_range: Option<(f32, f32)>,
     problem: Option<String>,
     notice: Option<Notice>,
     last_sent: Option<Snapshot>,
@@ -115,7 +134,7 @@ pub struct Controller {
     adb: Option<Adb>,
     server_file: Result<PathBuf, String>,
     settings_path: PathBuf,
-    status_tx: Sender<(u64, Status)>,
+    status_tx: Sender<(u64, Event)>,
     mica: bool,
     language: String,
 }
@@ -135,7 +154,7 @@ impl Controller {
             None
         };
         let language = sys_locale::get_locale().unwrap_or_default();
-        let (status_tx, status_rx) = mpsc::channel::<(u64, Status)>();
+        let (status_tx, status_rx) = mpsc::channel::<(u64, Event)>();
 
         let this = Arc::new(Self {
             app,
@@ -153,6 +172,9 @@ impl Controller {
                 fetching: Vec::new(),
                 torch: false,
                 fps: 0.0,
+                zoom: 1.0,
+                zoom_sent: None,
+                zoom_range: None,
                 problem,
                 notice: None,
                 last_sent: None,
@@ -170,8 +192,11 @@ impl Controller {
         std::thread::Builder::new()
             .name("status".into())
             .spawn(move || {
-                for (generation, status) in status_rx {
-                    c.on_pipeline_status(generation, status);
+                for (generation, event) in status_rx {
+                    match event {
+                        Event::Status(status) => c.on_pipeline_status(generation, status),
+                        Event::Zoom(z) => c.on_zoom(generation, z),
+                    }
                 }
             })
             .unwrap();
@@ -211,12 +236,15 @@ impl Controller {
                     facing: c.facing.clone(),
                     megapixels: c.megapixels(),
                     zoom_min: c.zoom.map(|z| z.0),
+                    zoom_max: c.zoom.map(|z| z.1),
                 })
                 .collect(),
             selected_camera: selected.map(|c| c.id.clone()),
             smooth_available: selected.is_some_and(|c| cameras::capture_mode(c, Quality::Smooth).is_some()),
             torch: st.torch,
             fps: st.fps,
+            zoom: st.zoom,
+            zoom_range: st.zoom_range,
             problem: st.problem.clone(),
             notice: st.notice.clone(),
             mica: self.mica,
@@ -258,6 +286,8 @@ impl Controller {
             st.status = None;
             st.fps = 0.0;
             st.running_camera = None;
+            st.zoom = 1.0;
+            st.zoom_sent = None;
             self.preview_clear();
         }
         self.publish(&mut st);
@@ -309,7 +339,9 @@ impl Controller {
         let usable: Vec<&CameraInfo> = phone
             .map(|p| p.cameras.iter().filter(|c| !st.settings.is_broken(&model, &c.id)).collect())
             .unwrap_or_default();
-        let mode = match selected_camera(&st.settings, &usable) {
+        let selected = selected_camera(&st.settings, &usable);
+        let zoom_range = selected.and_then(|c| c.zoom);
+        let mode = match selected {
             Some(cam) => {
                 params.camera_id = Some(cam.id.clone());
                 cameras::capture_mode(cam, st.settings.quality)
@@ -324,11 +356,18 @@ impl Controller {
                 (params.size, params.fps) = (Some((w, h)), 30);
             }
         }
+        if st.running_camera != params.camera_id {
+            st.zoom = 1.0; // another lens starts at its own 1x
+        }
         st.running_camera = params.camera_id.clone();
+        st.zoom_range = zoom_range;
+        st.zoom_sent = None;
+        params.zoom = (st.zoom != 1.0).then_some(st.zoom);
 
         st.generation += 1;
         let generation = st.generation;
         let tx = self.status_tx.clone();
+        let zoom_tx = self.status_tx.clone();
         let config = PipelineConfig {
             adb,
             server_file,
@@ -338,11 +377,14 @@ impl Controller {
             rotation: st.settings.rotation,
             dump: None,
             preview: Some(self.preview.clone()),
+            on_zoom: Some(Arc::new(move |z| {
+                let _ = zoom_tx.send((generation, Event::Zoom(z)));
+            })),
         };
         let vcam = st.vcam.take().expect("vcam created above");
         st.status = Some(Status::WaitingForDevice);
         st.pipeline = Some(Pipeline::start(config, vcam, move |s| {
-            let _ = tx.send((generation, s.clone()));
+            let _ = tx.send((generation, Event::Status(s.clone())));
         }));
     }
 
@@ -372,6 +414,14 @@ impl Controller {
         }
         st.status = Some(status);
         self.publish(&mut st);
+    }
+
+    fn on_zoom(&self, generation: u64, z: f32) {
+        let mut st = self.state.lock().unwrap();
+        if generation == st.generation && st.camera_on {
+            st.zoom = z;
+            self.publish(&mut st);
+        }
     }
 
     /// Applies a partial settings object from the window (camelCase keys).
@@ -419,11 +469,34 @@ impl Controller {
         Ok(())
     }
 
+    /// One zoom step in or out.
     pub fn zoom(&self, zoom_in: bool) -> Result<(), String> {
-        let st = self.state.lock().unwrap();
+        self.zoom_by(|step| if zoom_in { step + 1 } else { step - 1 })
+    }
+
+    /// Zooms to `target` (e.g. 2.0) by sending as many steps as the phone needs to get there.
+    pub fn set_zoom(&self, target: f32) -> Result<(), String> {
+        self.zoom_by(|_| zoom::step_of(target))
+    }
+
+    fn zoom_by(&self, target_step: impl FnOnce(i32) -> i32) -> Result<(), String> {
+        let mut st = self.state.lock().unwrap();
+        let current = match st.zoom_sent {
+            Some((step, at)) if at.elapsed() < ZOOM_RESYNC => step,
+            _ => zoom::step_of(st.zoom),
+        };
+        let (lo, hi) = st.zoom_range.map(zoom::step_range).unwrap_or((i32::MIN, i32::MAX));
+        let target = target_step(current).clamp(lo, hi);
+        if target == current {
+            return Ok(());
+        }
         let pipeline = st.pipeline.as_ref().ok_or("camera is off")?;
-        let msg = if zoom_in { ControlMessage::ZoomIn } else { ControlMessage::ZoomOut };
-        pipeline.send_control(msg).map_err(|e| e.to_string())
+        let msg = if target > current { ControlMessage::ZoomIn } else { ControlMessage::ZoomOut };
+        for _ in 0..(target - current).abs() {
+            pipeline.send_control(msg).map_err(|e| e.to_string())?;
+        }
+        st.zoom_sent = Some((target, Instant::now()));
+        Ok(())
     }
 
     pub fn dismiss_notice(&self) {

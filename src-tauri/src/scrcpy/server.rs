@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use sha2::{Digest, Sha256};
 
-use super::protocol;
+use super::{protocol, zoom};
 use crate::adb::{Adb, AdbError};
 use crate::resources;
 
@@ -128,22 +128,44 @@ impl CameraParams {
     }
 }
 
-/// Last lines printed by the server, used to explain failures.
+type ZoomHook = Box<dyn Fn(f32) + Send>;
+
+/// Last lines printed by the server, used to explain failures, and the camera zoom it reports.
 #[derive(Clone, Default)]
-pub struct ServerLog(Arc<Mutex<VecDeque<String>>>);
+pub struct ServerLog {
+    lines: Arc<Mutex<VecDeque<String>>>,
+    zoom: Arc<Mutex<(Option<f32>, Option<ZoomHook>)>>,
+}
 
 impl ServerLog {
     fn push(&self, line: String) {
-        let mut lines = self.0.lock().unwrap();
+        if let Some(z) = zoom::parse_log_line(&line) {
+            let mut zoom = self.zoom.lock().unwrap();
+            zoom.0 = Some(z);
+            if let Some(hook) = &zoom.1 {
+                hook(z);
+            }
+        }
+        let mut lines = self.lines.lock().unwrap();
         if lines.len() == LOG_LINES_KEPT {
             lines.pop_front();
         }
         lines.push_back(line);
     }
 
+    /// Calls `hook` with every zoom the server sets from now on, and with the last one it
+    /// already set, if any.
+    pub fn on_zoom(&self, hook: impl Fn(f32) + Send + 'static) {
+        let mut zoom = self.zoom.lock().unwrap();
+        if let Some(z) = zoom.0 {
+            hook(z);
+        }
+        zoom.1 = Some(Box::new(hook));
+    }
+
     /// Distinct error and warning lines (at most 3), formatted to be appended to a message.
     pub fn problems(&self) -> String {
-        let lines = self.0.lock().unwrap();
+        let lines = self.lines.lock().unwrap();
         let mut bad: Vec<&str> = Vec::new();
         for line in lines.iter().map(|l| l.trim()) {
             let is_problem = line.contains("ERROR") || line.contains("Exception") || line.contains("WARN");

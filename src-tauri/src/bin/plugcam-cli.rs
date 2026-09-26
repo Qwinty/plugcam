@@ -151,6 +151,7 @@ fn run(args: Args) -> Result<(), String> {
             rotation: 0,
             dump: args.dump,
             preview: None,
+            on_zoom: None,
         },
         vcam,
         |_| {},

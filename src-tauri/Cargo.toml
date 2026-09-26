@@ -40,6 +40,8 @@ tauri-build = { version = "2.6.3", features = [] }
 # frame there (5 fps, and the phone starts dropping frames), so optimize even in dev.
 [profile.dev]
 opt-level = 1
+# Incremental builds of optimized code can fail to link (missing `anon.*.llvm` symbols).
+incremental = false
 
 [profile.dev.package."*"]
 opt-level = 3

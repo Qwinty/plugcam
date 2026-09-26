@@ -66,13 +66,13 @@ pub struct FrameConverter {
     rotation: u16,
     placement: Option<Placement>,
     src_bgr: Vec<u8>,
-    scaled: Vec<u8>,
+    scaled_y: Vec<u8>,
+    scaled_uv: Vec<u8>,
     out: Vec<u8>,
     /// Tightly packed copies of padded planes (see `convert`).
     packed_y: Vec<u8>,
     packed_uv: Vec<u8>,
-    rotated_y: Vec<u8>,
-    rotated_uv: Vec<[u8; 2]>,
+    rotated: Vec<[u8; 3]>,
     resizer: Resizer,
 }
 
@@ -85,12 +85,12 @@ impl FrameConverter {
             rotation: 0,
             placement: None,
             src_bgr: Vec::new(),
-            scaled: Vec::new(),
+            scaled_y: Vec::new(),
+            scaled_uv: Vec::new(),
             out: vec![0; out_width as usize * out_height as usize * 3],
             packed_y: Vec::new(),
             packed_uv: Vec::new(),
-            rotated_y: Vec::new(),
-            rotated_uv: Vec::new(),
+            rotated: Vec::new(),
             resizer: Resizer::new(),
         }
     }
@@ -116,56 +116,57 @@ impl FrameConverter {
     }
 
     pub fn convert(&mut self, frame: &Nv12Frame) -> Result<&[u8], FrameError> {
-        // Rotating NV12 before the color conversion moves half the bytes BGR would.
-        let (w, h, y_plane, uv_plane) = if self.rotation != 0 {
-            let (cw, ch) = (frame.width.div_ceil(2) as usize, frame.height.div_ceil(2) as usize);
-            let (w, h) = (frame.width as usize, frame.height as usize);
-            rotate(frame.y, frame.y_stride as usize, w, h, self.rotation, &mut self.rotated_y);
-            let (uv_pairs, _) = frame.uv.as_chunks::<2>();
-            rotate(uv_pairs, frame.uv_stride as usize / 2, cw, ch, self.rotation, &mut self.rotated_uv);
-            let (w, h) = if self.rotation == 180 { (frame.width, frame.height) } else { (frame.height, frame.width) };
-            (w, h, &self.rotated_y[..], self.rotated_uv.as_flattened())
-        } else if frame.y_stride == frame.width && frame.uv_stride == frame.width {
-            (frame.width, frame.height, frame.y, frame.uv)
+        let (w, h) = (frame.width, frame.height);
+        let (y_plane, uv_plane) = if frame.y_stride == w && frame.uv_stride == w {
+            (frame.y, frame.uv)
         } else {
             // yuvutils-rs 0.8 rejects an interleaved UV plane whose stride is wider than the
             // picture, which is what the decoder gives for 1080-wide video: stride 1088.
-            let (w, h) = (frame.width, frame.height);
             pack(&mut self.packed_y, frame.y, frame.y_stride, w, h);
             pack(&mut self.packed_uv, frame.uv, frame.uv_stride, w.div_ceil(2) * 2, h.div_ceil(2));
-            (w, h, &self.packed_y[..], &self.packed_uv[..])
+            (&self.packed_y[..], &self.packed_uv[..])
         };
 
-        let place = fit(w, h, self.out_width, self.out_height);
+        let turned = matches!(self.rotation, 90 | 270);
+        let place = if turned { fit(h, w, self.out_width, self.out_height) } else { fit(w, h, self.out_width, self.out_height) };
         if self.placement != Some(place) {
             // Bars are only painted when the geometry changes; frames overwrite the picture area.
             self.out.fill(0);
             self.placement = Some(place);
         }
 
-        self.src_bgr.resize(w as usize * h as usize * 3, 0);
+        // Work at the final size as early as possible: scale the NV12 planes (half the bytes
+        // of BGR), convert the colors, and only then rotate the now small picture.
+        let (sw, sh) = if turned { (place.height, place.width) } else { (place.width, place.height) };
+        let (y_plane, uv_plane) = if (sw, sh) == (w, h) {
+            (y_plane, uv_plane)
+        } else {
+            let r = &mut self.resizer;
+            resize_plane(r, y_plane, (w, h), &mut self.scaled_y, (sw, sh), PixelType::U8)?;
+            let (cw, ch, scw, sch) = (w.div_ceil(2), h.div_ceil(2), sw.div_ceil(2), sh.div_ceil(2));
+            resize_plane(r, uv_plane, (cw, ch), &mut self.scaled_uv, (scw, sch), PixelType::U8x2)?;
+            (&self.scaled_y[..], &self.scaled_uv[..])
+        };
+
+        self.src_bgr.resize(sw as usize * sh as usize * 3, 0);
         let yuv = YuvBiPlanarImage {
             y_plane,
-            y_stride: w,
+            y_stride: sw,
             uv_plane,
-            uv_stride: w.div_ceil(2) * 2,
-            width: w,
-            height: h,
+            uv_stride: sw.div_ceil(2) * 2,
+            width: sw,
+            height: sh,
         };
         let range = if frame.color.full_range { YuvRange::Full } else { YuvRange::Limited };
         let matrix = if frame.color.bt709 { YuvStandardMatrix::Bt709 } else { YuvStandardMatrix::Bt601 };
-        yuvutils_rs::yuv_nv12_to_bgr(&yuv, &mut self.src_bgr, w * 3, range, matrix, YuvConversionMode::Balanced)?;
+        yuvutils_rs::yuv_nv12_to_bgr(&yuv, &mut self.src_bgr, sw * 3, range, matrix, YuvConversionMode::Balanced)?;
 
-        let picture: &[u8] = if (place.width, place.height) == (w, h) {
+        let picture: &[u8] = if self.rotation == 0 {
             &self.src_bgr
         } else {
-            self.scaled.resize(place.width as usize * place.height as usize * 3, 0);
-            let src = ImageRef::new(w, h, &self.src_bgr, PixelType::U8x3).map_err(|e| FrameError::Resize(e.to_string()))?;
-            let mut dst = Image::from_slice_u8(place.width, place.height, &mut self.scaled, PixelType::U8x3)
-                .map_err(|e| FrameError::Resize(e.to_string()))?;
-            let options = ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear));
-            self.resizer.resize(&src, &mut dst, &options).map_err(|e| FrameError::Resize(e.to_string()))?;
-            &self.scaled
+            let (pixels, _) = self.src_bgr.as_chunks::<3>();
+            rotate(pixels, sw as usize, sw as usize, sh as usize, self.rotation, &mut self.rotated);
+            self.rotated.as_flattened()
         };
 
         let row_len = place.width as usize * 3;
@@ -185,22 +186,42 @@ impl FrameConverter {
     }
 }
 
+/// Scales a tight plane of `pixel`s from `src_size` into `dst` at `dst_size`.
+fn resize_plane(
+    resizer: &mut Resizer,
+    src: &[u8],
+    src_size: (u32, u32),
+    dst: &mut Vec<u8>,
+    dst_size: (u32, u32),
+    pixel: PixelType,
+) -> Result<(), FrameError> {
+    let err = |e: &dyn std::fmt::Display| FrameError::Resize(e.to_string());
+    dst.resize(dst_size.0 as usize * dst_size.1 as usize * pixel.size(), 0);
+    let src = ImageRef::new(src_size.0, src_size.1, src, pixel).map_err(|e| err(&e))?;
+    let mut dst = Image::from_slice_u8(dst_size.0, dst_size.1, dst, pixel).map_err(|e| err(&e))?;
+    let options = ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear));
+    resizer.resize(&src, &mut dst, &options).map_err(|e| err(&e))
+}
+
 /// Rotates a `w`x`h` plane (rows `stride` elements apart) clockwise into a tight buffer.
 /// Works in tiles so both the reads and the scattered writes stay in cache.
 fn rotate<T: Copy + Default>(src: &[T], stride: usize, w: usize, h: usize, degrees: u16, dst: &mut Vec<T>) {
     const TILE: usize = 32;
     dst.clear();
+    if degrees == 180 {
+        // Upside down is the same pixels in reverse order: one linear pass.
+        for row in src.chunks(stride).take(h).rev() {
+            dst.extend(row[..w].iter().rev());
+        }
+        return;
+    }
     dst.resize(w * h, T::default());
     for tile_y in (0..h).step_by(TILE) {
         for tile_x in (0..w).step_by(TILE) {
             for y in tile_y..(tile_y + TILE).min(h) {
                 let row = &src[y * stride..y * stride + w];
                 for x in tile_x..(tile_x + TILE).min(w) {
-                    let i = match degrees {
-                        90 => x * h + (h - 1 - y),
-                        180 => (h - 1 - y) * w + (w - 1 - x),
-                        _ => (w - 1 - x) * h + y,
-                    };
+                    let i = if degrees == 90 { x * h + (h - 1 - y) } else { (w - 1 - x) * h + y };
                     dst[i] = row[x];
                 }
             }
@@ -348,6 +369,23 @@ mod tests {
         let out = conv.convert(&frame(w, h, &y, &uv)).unwrap();
         assert!(close(pixel(out, w, 0, 1), [0, 0, 0]));
         assert!(close(pixel(out, w, 7, 1), [255, 255, 255]));
+    }
+
+    /// `cargo test --release convert_speed -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn convert_speed() {
+        let (w, h) = (1920u32, 1080u32);
+        let (y, uv) = solid(w, h, [120, 100, 150]);
+        let mut conv = FrameConverter::new(w, h);
+        for deg in [0u16, 90, 180] {
+            conv.set_rotation(deg);
+            let t = std::time::Instant::now();
+            for _ in 0..20 {
+                conv.convert(&frame(w, h, &y, &uv)).unwrap();
+            }
+            println!("1080p at {deg}: {:.2} ms per frame", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+        }
     }
 
     #[test]
