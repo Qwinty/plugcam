@@ -7,45 +7,15 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Manager, Wry};
 
 use super::controller::{Controller, Snapshot};
+use super::i18n;
 
 const TRAY_ID: &str = "main";
 
 /// Kept to change the toggle's text when the camera turns on or off.
 struct ToggleItem(MenuItem<Wry>);
 
-struct Texts {
-    on: &'static str,
-    off: &'static str,
-    open: &'static str,
-    quit: &'static str,
-    tooltip_on: &'static str,
-    tooltip_off: &'static str,
-}
-
-fn texts(language: &str) -> Texts {
-    if language == "ru" {
-        Texts {
-            on: "Включить камеру",
-            off: "Выключить камеру",
-            open: "Открыть Plugcam",
-            quit: "Выход",
-            tooltip_on: "Plugcam — камера включена",
-            tooltip_off: "Plugcam — камера выключена",
-        }
-    } else {
-        Texts {
-            on: "Turn camera on",
-            off: "Turn camera off",
-            open: "Open Plugcam",
-            quit: "Quit",
-            tooltip_on: "Plugcam — camera on",
-            tooltip_off: "Plugcam — camera off",
-        }
-    }
-}
-
 pub fn create(app: &AppHandle, snap: &Snapshot) -> tauri::Result<()> {
-    let t = texts(&snap.language);
+    let t = i18n::tray(&snap.language);
     let toggle = MenuItem::with_id(app, "toggle", if snap.camera_on { t.off } else { t.on }, true, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", t.open, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", t.quit, true, None::<&str>)?;
@@ -76,7 +46,7 @@ pub fn create(app: &AppHandle, snap: &Snapshot) -> tauri::Result<()> {
 }
 
 pub fn update(app: &AppHandle, snap: &Snapshot) {
-    let t = texts(&snap.language);
+    let t = i18n::tray(&snap.language);
     if let Some(item) = app.try_state::<ToggleItem>() {
         let _ = item.0.set_text(if snap.camera_on { t.off } else { t.on });
     }

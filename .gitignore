@@ -11,3 +11,8 @@ vcam/**/Debug/
 vcam/dist/
 /dist/
 src-tauri/gen/
+# Staged by scripts/stage-resources.ps1 for the installer
+src-tauri/resources/*.exe
+src-tauri/resources/*.dll
+src-tauri/resources/x86/
+src-tauri/resources/licenses/platform-tools-NOTICE.txt

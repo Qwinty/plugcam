@@ -15,13 +15,17 @@
         "label": "main",
         "title": "Plugcam",
         "width": 980,
-        "height": 660,
+        "height": 700,
         "minWidth": 760,
         "minHeight": 560,
         "center": true,
         "visible": false,
         "transparent": true,
-        "windowEffects": { "effects": ["mica"] }
+        "windowEffects": {
+          "effects": [
+            "mica"
+          ]
+        }
       }
     ],
     "security": {
@@ -30,7 +34,50 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"]
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "Maxim Esipov",
+    "copyright": "© 2026 Maxim Esipov. Apache-2.0.",
+    "homepage": "https://github.com/Qwinty/plugcam",
+    "category": "Video",
+    "shortDescription": "Your Android phone as a webcam",
+    "longDescription": "Plugcam turns an Android phone's camera into a Windows webcam over USB: no app on the phone, no watermarks, free and open source.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/*": "resources/",
+      "resources/x86/*": "resources/x86/",
+      "resources/licenses/*": "licenses/",
+      "../LICENSE": "LICENSE.txt",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "windows/hooks.nsh",
+        "installerIcon": "icons/icon.ico",
+        "languages": [
+          "English",
+          "German",
+          "Spanish",
+          "French",
+          "Italian",
+          "Polish",
+          "PortugueseBR",
+          "Turkish",
+          "Ukrainian",
+          "Russian",
+          "Japanese",
+          "Korean",
+          "SimpChinese"
+        ],
+        "displayLanguageSelector": false
+      }
+    }
   }
 }

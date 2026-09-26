@@ -1,222 +1,43 @@
-// UI strings. The language follows Windows (Snapshot.language).
+// UI strings. The backend picks the language (setting, else Windows) and sends it in
+// Snapshot.language; the dictionaries live in ./locales, English is the source of keys.
 
-const ru = {
-  "app.settings": "Настройки",
-  "app.back": "Назад",
+import en, { type Key, type Messages } from "./locales/en";
+import ru from "./locales/ru";
+import uk from "./locales/uk";
+import de from "./locales/de";
+import fr from "./locales/fr";
+import es from "./locales/es";
+import ptBR from "./locales/pt-BR";
+import it from "./locales/it";
+import pl from "./locales/pl";
+import tr from "./locales/tr";
+import zhCN from "./locales/zh-CN";
+import ja from "./locales/ja";
+import ko from "./locales/ko";
 
-  "status.noPhone": "Подключите телефон",
-  "status.noPhone.hint": "Кабелем USB, с включённой отладкой по USB",
-  "status.unauthorized": "Разрешите отладку на телефоне",
-  "status.unauthorized.hint": "На экране телефона нажмите «Разрешить» и отметьте «Всегда разрешать»",
-  "status.offline": "Телефон не отвечает",
-  "status.offline.hint": "Отключите и снова подключите кабель",
-  "status.ready": "Готово",
-  "status.waiting": "Ждём телефон",
-  "status.connecting": "Подключение…",
-  "status.streaming": "Идёт трансляция",
-  "status.noPicture": "Объектив не даёт картинку",
-  "status.error": "Ошибка",
-  "status.problem.hint": "Переустановите Plugcam. Если не поможет, напишите об ошибке на GitHub.",
-  "status.cameraBusy.hint": "Камеры телефона временно недоступны. Подождите минуту — Plugcam подключится сам.",
-  "status.retry.hint": "Plugcam пробует снова",
-  "status.fps": "{fps} кадров/с",
+/** Same codes and order as `SUPPORTED_LANGUAGES` in src-tauri/src/app/i18n.rs. */
+export const LANGUAGES: { code: string; name: string; messages: Messages }[] = [
+  { code: "en", name: "English", messages: en },
+  { code: "de", name: "Deutsch", messages: de },
+  { code: "es", name: "Español", messages: es },
+  { code: "fr", name: "Français", messages: fr },
+  { code: "it", name: "Italiano", messages: it },
+  { code: "pl", name: "Polski", messages: pl },
+  { code: "pt-BR", name: "Português (Brasil)", messages: ptBR },
+  { code: "tr", name: "Türkçe", messages: tr },
+  { code: "uk", name: "Українська", messages: uk },
+  { code: "ru", name: "Русский", messages: ru },
+  { code: "ja", name: "日本語", messages: ja },
+  { code: "ko", name: "한국어", messages: ko },
+  { code: "zh-CN", name: "简体中文", messages: zhCN },
+];
 
-  "conn.usb": "USB",
-  "conn.wifi": "Wi-Fi",
+let dict: Messages = en;
 
-  "camera.on": "Включить камеру",
-  "camera.off": "Выключить камеру",
-  "camera.starting": "Включаем…",
-  "camera.stopping": "Выключаем…",
-
-  "preview.off": "Камера выключена",
-  "preview.off.hint": "Нажмите «Включить камеру» — картинка с телефона появится здесь и в «Plugcam Camera»",
-  "preview.waiting": "Ждём первый кадр…",
-  "preview.inApps": "В Zoom, Discord, Telegram и OBS выберите камеру «Plugcam Camera»",
-  "live": "В эфире",
-  "live.fps": "В эфире · {fps} кадров/с",
-
-  "ctl.lens": "Объектив",
-  "ctl.rotation": "Поворот",
-  "ctl.rotateLeft": "Повернуть влево",
-  "ctl.rotateRight": "Повернуть вправо",
-  "sec.camera": "Камера",
-  "sec.picture": "Картинка",
-  "sec.phone": "Телефон",
-  "sec.quality": "Качество",
-  "facing.back": "Основная",
-  "facing.front": "Фронтальная",
-  "ctl.mirror": "Зеркальное отражение",
-  "ctl.torch": "Фонарик",
-  "ctl.torch.na": "Только у основной камеры",
-  "ctl.zoom": "Зум",
-  "ctl.zoomTo": "Зум {v}",
-  "ctl.needsStream": "Работает во время трансляции",
-  "ctl.zoomIn": "Приблизить",
-  "ctl.zoomOut": "Отдалить",
-  "lens.main": "Основной",
-  "lens.front": "Фронтальный",
-  "lens.wide": "Широкий угол",
-  "lens.other": "Объектив {id}",
-  "lens.mp": "{mp} Мп",
-
-  "quality.economy": "Экономно",
-  "quality.economy.hint": "720p · 30 кадров/с · меньше нагрузка",
-  "quality.standard": "Стандарт",
-  "quality.standard.hint": "1080p · 30 кадров/с",
-  "quality.smooth": "Плавно",
-  "quality.smooth.hint": "1080p · 60 кадров/с · для игр и спорта",
-  "quality.smooth.na": "Эта камера не умеет 60 кадров/с",
-
-  "notice.lensHidden": "Объектив {id} не отдаёт картинку. Он скрыт, включена основная камера.",
-  "notice.startFailed": "Не удалось включить камеру: {message}",
-  "notice.close": "Закрыть",
-
-  "set.vcam": "Виртуальная камера",
-  "set.resolution": "Разрешение",
-  "set.resolution.hint": "Картинка с телефона вписывается в этот размер",
-  "set.video": "Видео",
-  "set.bitrate": "Битрейт",
-  "set.bitrate.auto": "Авто",
-  "set.bitrate.hint": "Больше — чётче картинка, но нужен хороший кабель или Wi-Fi",
-  "set.mbps": "{v} Мбит/с",
-  "set.startup": "Запуск",
-  "set.launchAtLogin": "Запускать вместе с Windows",
-  "set.closeToTray": "Сворачивать в трей при закрытии",
-  "set.closeToTray.hint": "Окно закрывается, а камера продолжает работать",
-  "set.autoStart": "Включать камеру при подключении телефона",
-  "set.about": "О программе",
-  "set.version": "Версия {v}",
-  "set.rerunWizard": "Снова пройти первоначальную настройку",
-  "set.restartNote": "Изменения применяются сразу; видеосвязь может на секунду переподключить камеру.",
-
-  "wiz.step": "Шаг {n} из 3",
-  "wiz.skip": "Пропустить",
-  "wiz.next": "Далее",
-  "wiz.done": "Готово",
-  "wiz.1.title": "Включите режим разработчика",
-  "wiz.1.text": "На телефоне откройте Настройки → О телефоне и семь раз нажмите «Номер сборки». На OnePlus: Настройки → Об устройстве → Версия → Номер сборки.",
-  "wiz.2.title": "Включите отладку по USB",
-  "wiz.2.text": "Настройки → Система (или Дополнительные настройки) → Для разработчиков → включите «Отладка по USB».",
-  "wiz.3.title": "Подключите кабель",
-  "wiz.3.text": "Подключите телефон к компьютеру. На телефоне появится запрос — нажмите «Разрешить» и отметьте «Всегда разрешать с этого компьютера».",
-  "wiz.3.found": "Телефон {name} подключён",
-  "wiz.3.driver": "Телефон не находится? Установите USB-драйвер",
-  "wiz.why": "Своё приложение на телефон ставить не нужно: Plugcam работает через отладку по USB.",
-};
-
-type Key = keyof typeof ru;
-
-const en: Record<Key, string> = {
-  "app.settings": "Settings",
-  "app.back": "Back",
-
-  "status.noPhone": "Connect your phone",
-  "status.noPhone.hint": "With a USB cable, USB debugging turned on",
-  "status.unauthorized": "Allow debugging on the phone",
-  "status.unauthorized.hint": "Tap “Allow” on the phone and tick “Always allow”",
-  "status.offline": "The phone is not responding",
-  "status.offline.hint": "Unplug the cable and plug it in again",
-  "status.ready": "Ready",
-  "status.waiting": "Waiting for the phone",
-  "status.connecting": "Connecting…",
-  "status.streaming": "Streaming",
-  "status.noPicture": "This lens gives no picture",
-  "status.error": "Error",
-  "status.problem.hint": "Reinstall Plugcam. If that does not help, report the error on GitHub.",
-  "status.cameraBusy.hint": "The phone's cameras are busy for a moment. Wait a minute — Plugcam reconnects by itself.",
-  "status.retry.hint": "Plugcam is trying again",
-  "status.fps": "{fps} fps",
-
-  "conn.usb": "USB",
-  "conn.wifi": "Wi-Fi",
-
-  "camera.on": "Turn camera on",
-  "camera.off": "Turn camera off",
-  "camera.starting": "Turning on…",
-  "camera.stopping": "Turning off…",
-
-  "preview.off": "The camera is off",
-  "preview.off.hint": "Press “Turn camera on” — the phone’s picture shows up here and in “Plugcam Camera”",
-  "preview.waiting": "Waiting for the first frame…",
-  "preview.inApps": "In Zoom, Discord, Telegram or OBS pick the “Plugcam Camera” camera",
-  "live": "Live",
-  "live.fps": "Live · {fps} fps",
-
-  "ctl.lens": "Lens",
-  "ctl.rotation": "Rotation",
-  "ctl.rotateLeft": "Rotate left",
-  "ctl.rotateRight": "Rotate right",
-  "sec.camera": "Camera",
-  "sec.picture": "Picture",
-  "sec.phone": "Phone",
-  "sec.quality": "Quality",
-  "facing.back": "Back",
-  "facing.front": "Front",
-  "ctl.mirror": "Mirror image",
-  "ctl.torch": "Flashlight",
-  "ctl.torch.na": "Back camera only",
-  "ctl.zoom": "Zoom",
-  "ctl.zoomTo": "Zoom {v}",
-  "ctl.needsStream": "Works while streaming",
-  "ctl.zoomIn": "Zoom in",
-  "ctl.zoomOut": "Zoom out",
-  "lens.main": "Main",
-  "lens.front": "Front",
-  "lens.wide": "Wide angle",
-  "lens.other": "Lens {id}",
-  "lens.mp": "{mp} MP",
-
-  "quality.economy": "Saver",
-  "quality.economy.hint": "720p · 30 fps · lighter load",
-  "quality.standard": "Standard",
-  "quality.standard.hint": "1080p · 30 fps",
-  "quality.smooth": "Smooth",
-  "quality.smooth.hint": "1080p · 60 fps · for games and sports",
-  "quality.smooth.na": "This camera cannot do 60 fps",
-
-  "notice.lensHidden": "Lens {id} gives no picture. It is now hidden and the main camera is on.",
-  "notice.startFailed": "Could not turn the camera on: {message}",
-  "notice.close": "Close",
-
-  "set.vcam": "Virtual camera",
-  "set.resolution": "Resolution",
-  "set.resolution.hint": "The phone's picture is fitted into this size",
-  "set.video": "Video",
-  "set.bitrate": "Bit rate",
-  "set.bitrate.auto": "Auto",
-  "set.bitrate.hint": "Higher is sharper but needs a good cable or Wi-Fi",
-  "set.mbps": "{v} Mbit/s",
-  "set.startup": "Startup",
-  "set.launchAtLogin": "Start with Windows",
-  "set.closeToTray": "Keep running in the tray when closed",
-  "set.closeToTray.hint": "The window closes, the camera keeps working",
-  "set.autoStart": "Turn the camera on when the phone connects",
-  "set.about": "About",
-  "set.version": "Version {v}",
-  "set.rerunWizard": "Run the first-time setup again",
-  "set.restartNote": "Changes apply right away; video calls may reconnect the camera for a second.",
-
-  "wiz.step": "Step {n} of 3",
-  "wiz.skip": "Skip",
-  "wiz.next": "Next",
-  "wiz.done": "Done",
-  "wiz.1.title": "Turn on developer mode",
-  "wiz.1.text": "On the phone open Settings → About phone and tap “Build number” seven times.",
-  "wiz.2.title": "Turn on USB debugging",
-  "wiz.2.text": "Settings → System → Developer options → turn on “USB debugging”.",
-  "wiz.3.title": "Plug in the cable",
-  "wiz.3.text": "Connect the phone to this computer. When the phone asks, tap “Allow” and tick “Always allow from this computer”.",
-  "wiz.3.found": "{name} is connected",
-  "wiz.3.driver": "Phone not found? Install the USB driver",
-  "wiz.why": "No app to install on the phone: Plugcam works through USB debugging.",
-};
-
-let dict: Record<Key, string> = ru;
-
-export function setLanguage(lang: string) {
-  dict = lang === "ru" ? ru : en;
-  document.documentElement.lang = lang === "ru" ? "ru" : "en";
+export function setLanguage(code: string) {
+  const lang = LANGUAGES.find((l) => l.code === code) ?? LANGUAGES[0];
+  dict = lang.messages;
+  document.documentElement.lang = lang.code;
 }
 
 export function t(key: Key, params: Record<string, string | number> = {}): string {

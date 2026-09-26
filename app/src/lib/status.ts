@@ -25,11 +25,8 @@ export function statusInfo(s: Snapshot): StatusInfo {
 
   switch (s.status.kind) {
     case "streaming":
-      return {
-        tone: "live",
-        title: t("status.streaming"),
-        hint: s.fps > 0 ? t("status.fps", { fps: Math.round(s.fps) }) : "",
-      };
+      // The frame rate is on the chip over the video.
+      return { tone: "live", title: t("status.streaming"), hint: "" };
     case "connecting":
       return { tone: "busy", title: t("status.connecting"), hint: "" };
     case "waitingForDevice":

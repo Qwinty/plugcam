@@ -1,6 +1,6 @@
 # Этап 2: видео по кабелю без интерфейса
 
-Дата: 26.09.2026. Запуск: `src-tauri/target/release/plugcam-cli.exe` (`--help` — все параметры).
+Дата: 26.09.2026. Запуск: `cargo run --release --example plugcam-cli` (или `src-tauri/target/release/examples/plugcam-cli.exe`) (`--help` — все параметры).
 Во время работы: `t` + Enter — фонарик, `+`/`-` — зум, `m` — зеркало, `q` — выход.
 
 ## Проверено автоматически

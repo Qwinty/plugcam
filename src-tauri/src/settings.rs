@@ -28,6 +28,8 @@ pub struct Settings {
     pub launch_at_login: bool,
     pub close_to_tray: bool,
     pub auto_start_camera: bool,
+    /// UI language code (see `app::i18n`); `None` = same as Windows.
+    pub language: Option<String>,
     /// Lenses that sent no picture, by phone model; hidden from the lens picker.
     pub broken_cameras: BTreeMap<String, Vec<String>>,
 }
@@ -47,6 +49,7 @@ impl Default for Settings {
             launch_at_login: false,
             close_to_tray: true,
             auto_start_camera: false,
+            language: None,
             broken_cameras: BTreeMap::new(),
         }
     }
@@ -90,6 +93,9 @@ impl Settings {
             (self.vcam_width, self.vcam_height) = (d.vcam_width, d.vcam_height);
         }
         self.bitrate_mbps = self.bitrate_mbps.map(|b| b.clamp(4, 40));
+        if self.language.as_deref().is_some_and(|l| !crate::app::i18n::SUPPORTED_LANGUAGES.contains(&l)) {
+            self.language = None;
+        }
         self
     }
 

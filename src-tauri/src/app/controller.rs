@@ -23,6 +23,7 @@ use crate::scrcpy::protocol::ControlMessage;
 use crate::scrcpy::{server, zoom};
 use crate::settings::Settings;
 use crate::vcam::VirtualCamera;
+use super::i18n;
 use crate::{platform, resources};
 
 const DEVICE_POLL: Duration = Duration::from_millis(1500);
@@ -54,7 +55,10 @@ pub struct Snapshot {
     /// One-off information, e.g. a lens that was hidden.
     pub notice: Option<Notice>,
     pub mica: bool,
+    /// The UI language in use: the setting, else the one matching Windows.
     pub language: String,
+    /// What "same as Windows" means on this PC.
+    pub system_language: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -136,7 +140,8 @@ pub struct Controller {
     settings_path: PathBuf,
     status_tx: Sender<(u64, Event)>,
     mica: bool,
-    language: String,
+    /// Windows locale, e.g. `ru-RU`.
+    system_locale: String,
 }
 
 impl Controller {
@@ -153,7 +158,6 @@ impl Controller {
         } else {
             None
         };
-        let language = sys_locale::get_locale().unwrap_or_default();
         let (status_tx, status_rx) = mpsc::channel::<(u64, Event)>();
 
         let this = Arc::new(Self {
@@ -185,7 +189,7 @@ impl Controller {
             settings_path,
             status_tx,
             mica: platform::windows_build() >= 22000,
-            language: if language.starts_with("ru") { "ru".into() } else { "en".into() },
+            system_locale: sys_locale::get_locale().unwrap_or_default(),
         });
 
         let c = this.clone();
@@ -248,7 +252,8 @@ impl Controller {
             problem: st.problem.clone(),
             notice: st.notice.clone(),
             mica: self.mica,
-            language: self.language.clone(),
+            language: i18n::resolve(st.settings.language.as_deref(), &self.system_locale).into(),
+            system_language: i18n::resolve(None, &self.system_locale).into(),
         }
     }
 

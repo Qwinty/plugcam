@@ -21,5 +21,8 @@
   "dependencies": {
     "@lucide/svelte": "^1.48.0",
     "@tauri-apps/api": "^2.11.1"
-  }
+  },
+  "packageManager": "pnpm@11.14.0",
+  "license": "Apache-2.0",
+  "description": "Your Android phone as a Windows webcam over USB"
 }

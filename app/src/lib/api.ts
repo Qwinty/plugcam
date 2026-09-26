@@ -18,6 +18,8 @@ export interface Settings {
   launchAtLogin: boolean;
   closeToTray: boolean;
   autoStartCamera: boolean;
+  /** `null` = same as Windows. */
+  language: string | null;
 }
 
 export type Status =
@@ -62,7 +64,10 @@ export interface Snapshot {
   problem: string | null;
   notice: Notice | null;
   mica: boolean;
-  language: "ru" | "en";
+  /** The language in use. */
+  language: string;
+  /** What "same as Windows" resolves to. */
+  systemLanguage: string;
 }
 
 export const getState = () => invoke<Snapshot>("get_state");

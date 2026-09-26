@@ -1,6 +1,7 @@
 //! The Tauri app: window, tray, commands for the UI.
 
 mod controller;
+pub mod i18n;
 mod tray;
 
 use std::sync::{Arc, Mutex};

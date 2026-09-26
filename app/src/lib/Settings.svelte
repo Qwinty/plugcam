@@ -1,9 +1,9 @@
 <script lang="ts">
   // Settings in the side panel; the video stays visible next to it.
-  import { ArrowLeft, ChevronRight } from "@lucide/svelte";
+  import { ArrowLeft, ChevronRight, Languages } from "@lucide/svelte";
   import * as api from "./api";
   import type { Snapshot } from "./api";
-  import { t } from "./i18n";
+  import { t, LANGUAGES } from "./i18n";
   import Select from "./Select.svelte";
   import Toggle from "./Toggle.svelte";
 
@@ -20,6 +20,12 @@
   // The slider only sends its value when released, so dragging does not restart the stream.
   let bitrateDraft = $state<number | null>(null);
   const bitrate = $derived(bitrateDraft ?? s.bitrateMbps ?? 12);
+
+  const systemName = $derived(LANGUAGES.find((l) => l.code === snap.systemLanguage)?.name ?? "English");
+  const languageOptions = $derived([
+    { value: "", label: `${t("set.language.system")} · ${systemName}` },
+    ...LANGUAGES.map((l) => ({ value: l.code, label: l.name })),
+  ]);
 </script>
 
 <div class="panel">
@@ -27,6 +33,17 @@
     <button class="icon-btn" aria-label={t("app.back")} title={t("app.back")} onclick={onback}><ArrowLeft size={20} /></button>
     <h1>{t("app.settings")}</h1>
   </header>
+
+  <section class="section">
+    <h2>{t("set.language")}</h2>
+    <Select
+      label={t("set.language")}
+      value={s.language ?? ""}
+      onchange={(v) => api.updateSettings({ language: v || null })}
+      options={languageOptions}>
+      {#snippet icon()}<Languages size={16} />{/snippet}
+    </Select>
+  </section>
 
   <section class="section">
     <h2>{t("set.vcam")}</h2>

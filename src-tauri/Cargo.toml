@@ -48,3 +48,8 @@ opt-level = 3
 
 [profile.dev.package.plugcam]
 opt-level = 3
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = true

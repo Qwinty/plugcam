@@ -1,4 +1,5 @@
 //! Console front end for stage 2: phone camera → "Plugcam Camera" without the GUI.
+//! `cargo run --release --example plugcam-cli -- --help`
 //!
 //! While running, type a letter and Enter: t = torch, + / - = zoom, m = mirror, r = rotate, q = quit.
 
