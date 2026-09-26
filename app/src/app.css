@@ -6,7 +6,9 @@
   --card-solid: #ffffff;
   --control: rgb(255 255 255 / 0.7);
   --control-hover: rgb(249 249 249 / 0.9);
+  --control-pressed: rgb(249 249 249 / 0.5);
   --stroke: rgb(0 0 0 / 0.08);
+  --divider: rgb(0 0 0 / 0.06);
   --shadow: rgb(0 0 0 / 0.12);
   --text: #1a1a1a;
   --text-2: #5c5c5c;
@@ -21,7 +23,11 @@
   --warn: #9d5d00;
   --warn-soft: rgb(157 93 0 / 0.12);
   --error: #c42b1c;
-  --preview-bg: rgb(0 0 0 / 0.06);
+  --error-soft: rgb(196 43 28 / 0.1);
+  /* The video stage is dark in both themes, like a camera viewfinder. */
+  --stage: #202020;
+  --stage-text: rgb(255 255 255 / 0.72);
+  --stage-outline: oklch(0 0 0 / 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,7 +37,9 @@
     --card-solid: #2d2d2d;
     --control: rgb(255 255 255 / 0.06);
     --control-hover: rgb(255 255 255 / 0.09);
+    --control-pressed: rgb(255 255 255 / 0.04);
     --stroke: rgb(255 255 255 / 0.08);
+    --divider: rgb(255 255 255 / 0.06);
     --shadow: rgb(0 0 0 / 0.4);
     --text: #ffffff;
     --text-2: #c5c5c5;
@@ -46,7 +54,9 @@
     --warn: #fce100;
     --warn-soft: rgb(252 225 0 / 0.1);
     --error: #ff99a4;
-    --preview-bg: rgb(0 0 0 / 0.3);
+    --error-soft: rgb(255 153 164 / 0.12);
+    --stage: #141414;
+    --stage-outline: oklch(1 0 0 / 0.1);
   }
 }
 
@@ -57,9 +67,8 @@ body {
   color: var(--text);
   font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
-  line-height: 1.35;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
-  user-select: none;
   cursor: default;
 }
 
@@ -73,6 +82,13 @@ button,
 select,
 input {
   font-family: inherit;
+  font-size: inherit;
+}
+
+/* One stroke weight for the whole Lucide set, matched to 400-weight text. */
+svg.lucide {
+  flex: none;
+  stroke-width: 1.5px;
 }
 
 .card {
@@ -81,27 +97,92 @@ input {
   border: 1px solid var(--stroke);
 }
 
+/* A section: small heading over its controls. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.section > h2 {
+  margin: 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* A settings-style row inside a card: text on the leading side, control on the trailing. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 4px 8px 4px 12px;
+  box-sizing: border-box;
+}
+.card > .row + .row {
+  border-top: 1px solid var(--divider);
+}
+.row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.row-hint {
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
 .icon-btn {
   flex: none;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--text);
   cursor: pointer;
+  transition-property: scale, background-color, color;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
-.icon-btn.small {
-  width: 28px;
-  height: 28px;
-}
-.icon-btn:hover {
+.icon-btn:hover:not(:disabled) {
   background: var(--control-hover);
+}
+.icon-btn:active:not(:disabled) {
+  background: var(--control-pressed);
+  scale: 0.96;
+}
+.icon-btn:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+.icon-btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+/* Bordered variant for tool buttons that sit on their own. */
+.icon-btn.outlined {
+  border: 1px solid var(--stroke);
+  background: var(--control);
+}
+.icon-btn.outlined:hover:not(:disabled) {
+  background: var(--control-hover);
+}
+.icon-btn.outlined[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--accent-soft);
 }
 
 .text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border: 0;
   padding: 4px 6px;
   border-radius: 4px;
@@ -109,9 +190,52 @@ input {
   color: var(--accent-text);
   font: inherit;
   cursor: pointer;
+  transition-property: background-color;
+  transition-duration: 150ms;
 }
 .text-btn:hover {
   background: var(--control-hover);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 6px;
+  border: 1px solid var(--stroke);
+  background: var(--control);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition-property: scale, background-color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+.btn:hover:not(:disabled) {
+  background: var(--control-hover);
+}
+.btn:active:not(:disabled) {
+  scale: 0.96;
+}
+.btn.accent {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn.accent:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+/* Semibold labels get the heavier stroke. */
+.btn svg.lucide {
+  stroke-width: 2px;
 }
 
 :focus-visible {

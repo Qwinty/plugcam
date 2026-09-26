@@ -35,3 +35,14 @@ yuvutils-rs = "0.8.3"
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
+
+# `tauri dev` builds the dev profile. Unoptimized color conversion and scaling take ~190 ms a
+# frame there (5 fps, and the phone starts dropping frames), so optimize even in dev.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.plugcam]
+opt-level = 3

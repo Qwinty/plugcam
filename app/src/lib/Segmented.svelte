@@ -27,6 +27,7 @@
 </div>
 
 <style>
+  /* Outer radius 8 = inner 6 + 2 padding. */
   .seg {
     display: flex;
     padding: 2px;
@@ -37,20 +38,29 @@
   }
   button {
     flex: 1;
-    min-height: 32px;
+    min-width: 0;
+    min-height: 30px;
+    padding: 0 6px;
     border: 0;
     border-radius: 6px;
     background: transparent;
     color: var(--text);
     font: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     cursor: pointer;
+    transition-property: background-color, box-shadow;
+    transition-duration: 150ms;
   }
   button:hover:not(:disabled):not(.on) {
     background: var(--control-hover);
   }
   button.on {
     background: var(--card-solid);
-    box-shadow: 0 1px 2px var(--shadow);
+    box-shadow:
+      0 0 0 1px var(--stroke),
+      0 1px 2px var(--shadow);
     font-weight: 600;
   }
   button:disabled {

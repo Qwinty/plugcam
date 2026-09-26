@@ -21,6 +21,7 @@ pub const SERVER_VERSION: &str = "4.1";
 pub const SERVER_SHA256: &str = "deacb991ed2509715160ffdc7907e47b4160eb30d1566217e9047fd5b8850cae";
 
 const DEVICE_SERVER_PATH: &str = "/data/local/tmp/plugcam-server.jar";
+const DEVICE_LIST_PATH: &str = "/data/local/tmp/plugcam-list.jar";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// A server left over from a crashed session keeps the camera busy for a moment after it is
 /// killed ("Too many other clients connecting"), see docs/stage0.md.
@@ -264,10 +265,12 @@ pub fn start(adb: &Adb, serial: &str, server: &Path, params: &CameraParams) -> R
 
 /// Runs the server in list mode and returns its report of cameras and their sizes.
 pub fn list_cameras(adb: &Adb, serial: &str, server: &Path) -> Result<String, ServerError> {
-    adb.push(serial, server, DEVICE_SERVER_PATH)?;
+    // Own copy: the server deletes its jar when it exits, which must not hit a streaming session
+    // that is starting at the same time.
+    adb.push(serial, server, DEVICE_LIST_PATH)?;
     let out = adb
         .command(Some(serial))
-        .args(["shell", &format!("CLASSPATH={DEVICE_SERVER_PATH}")])
+        .args(["shell", &format!("CLASSPATH={DEVICE_LIST_PATH}")])
         .args(["app_process", "/", "com.genymobile.scrcpy.Server", SERVER_VERSION])
         .args(["log_level=info", "list_cameras=true", "list_camera_sizes=true"])
         .output()?;

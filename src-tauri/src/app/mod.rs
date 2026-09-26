@@ -94,7 +94,7 @@ fn start_preview_thread(app: AppHandle, controller: Arc<Controller>) {
     std::thread::Builder::new()
         .name("preview".into())
         .spawn(move || {
-            let mut encoder = PreviewEncoder::new(640);
+            let mut encoder = PreviewEncoder::new(960);
             let mut buf = Vec::new();
             loop {
                 let Some((w, h)) = controller.preview.take(&mut buf, Duration::from_millis(500)) else { continue };

@@ -2,6 +2,9 @@
 //!
 //! Locking rule: never stop a pipeline while holding `state`. The pipeline thread reports
 //! through a channel that the status thread applies, so it never waits on `state` itself.
+//! Starting and stopping go through `lifecycle` (taken before `state`), so two of them never
+//! overlap: otherwise a second start could try to create the camera while the first pipeline
+//! still owns it.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -73,6 +76,8 @@ pub struct CameraView {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Notice {
     LensHidden { id: String },
+    /// The camera could not be turned on; pressing the button again may work.
+    StartFailed { message: String },
 }
 
 /// Per-phone facts fetched once per connection.
@@ -104,6 +109,7 @@ struct State {
 
 pub struct Controller {
     app: AppHandle,
+    lifecycle: Mutex<()>,
     state: Mutex<State>,
     pub preview: Arc<PreviewSlot>,
     adb: Option<Adb>,
@@ -133,6 +139,7 @@ impl Controller {
 
         let this = Arc::new(Self {
             app,
+            lifecycle: Mutex::new(()),
             state: Mutex::new(State {
                 settings,
                 camera_on: false,
@@ -229,6 +236,7 @@ impl Controller {
     }
 
     pub fn set_camera_on(&self, on: bool) {
+        let _lifecycle = self.lifecycle.lock().unwrap();
         let old = {
             let mut st = self.state.lock().unwrap();
             if st.camera_on == on || (on && st.problem.is_some()) {
@@ -257,6 +265,7 @@ impl Controller {
 
     /// Stops the running pipeline (if any) and starts a new one with the current settings.
     fn restart(&self) {
+        let _lifecycle = self.lifecycle.lock().unwrap();
         let old = self.state.lock().unwrap().pipeline.take();
         let vcam = old.and_then(Pipeline::stop);
         let mut st = self.state.lock().unwrap();
@@ -283,9 +292,11 @@ impl Controller {
                 .and_then(|dll| VirtualCamera::create(&dll, size.0, size.1).map_err(|e| e.to_string()));
             match created {
                 Ok(v) => st.vcam = Some(v),
-                Err(e) => {
-                    st.problem = Some(e);
+                Err(message) => {
+                    log::error!("creating the camera: {message}");
+                    st.notice = Some(Notice::StartFailed { message });
                     st.camera_on = false;
+                    st.status = None;
                     return;
                 }
             }
@@ -324,6 +335,7 @@ impl Controller {
             serial: None,
             camera: params,
             mirror: st.settings.mirror,
+            rotation: st.settings.rotation,
             dump: None,
             preview: Some(self.preview.clone()),
         };
@@ -376,10 +388,9 @@ impl Controller {
         let old = std::mem::replace(&mut st.settings, new.clone());
         self.save(&new);
 
-        if old.mirror != new.mirror {
-            if let Some(p) = &st.pipeline {
-                p.set_mirror(new.mirror);
-            }
+        if let Some(p) = &st.pipeline {
+            p.set_mirror(new.mirror);
+            p.set_rotation(new.rotation);
         }
         if old.launch_at_login != new.launch_at_login {
             super::set_launch_at_login(&self.app, new.launch_at_login);
@@ -387,7 +398,6 @@ impl Controller {
         let needs_restart = old.facing != new.facing
             || old.camera_id != new.camera_id
             || old.quality != new.quality
-            || old.rotation != new.rotation
             || old.bitrate() != new.bitrate()
             || (old.vcam_width, old.vcam_height) != (new.vcam_width, new.vcam_height);
         st.notice = None;
@@ -428,6 +438,7 @@ impl Controller {
 
     /// Before the app exits: stop streaming and remove the camera.
     pub fn shutdown(&self) {
+        let _lifecycle = self.lifecycle.lock().unwrap();
         let old = self.state.lock().unwrap().pipeline.take();
         drop(old.and_then(Pipeline::stop));
         let mut st = self.state.lock().unwrap();

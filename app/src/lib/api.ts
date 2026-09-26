@@ -43,7 +43,7 @@ export interface CameraView {
   zoomMin: number | null;
 }
 
-export type Notice = { kind: "lensHidden"; id: string };
+export type Notice = { kind: "lensHidden"; id: string } | { kind: "startFailed"; message: string };
 
 export interface Snapshot {
   settings: Settings;

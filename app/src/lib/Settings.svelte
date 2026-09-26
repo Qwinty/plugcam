@@ -1,9 +1,10 @@
 <script lang="ts">
+  // Settings in the side panel; the video stays visible next to it.
+  import { ArrowLeft, ChevronRight } from "@lucide/svelte";
   import * as api from "./api";
   import type { Snapshot } from "./api";
   import { t } from "./i18n";
-  import Icon from "./Icon.svelte";
-  import Segmented from "./Segmented.svelte";
+  import Select from "./Select.svelte";
   import Toggle from "./Toggle.svelte";
 
   let { snap, onback, onwizard }: { snap: Snapshot; onback: () => void; onwizard: () => void } = $props();
@@ -21,38 +22,30 @@
   const bitrate = $derived(bitrateDraft ?? s.bitrateMbps ?? 12);
 </script>
 
-<div class="page">
+<div class="panel">
   <header>
-    <button class="icon-btn" aria-label={t("app.back")} title={t("app.back")} onclick={onback}><Icon name="back" /></button>
+    <button class="icon-btn" aria-label={t("app.back")} title={t("app.back")} onclick={onback}><ArrowLeft size={20} /></button>
     <h1>{t("app.settings")}</h1>
   </header>
 
-  <section>
+  <section class="section">
     <h2>{t("set.vcam")}</h2>
     <div class="card">
-      <div class="row">
-        <span class="text"><span>{t("set.resolution")}</span><span class="hint">{t("set.resolution.hint")}</span></span>
-        <select
+      <div class="row stacked">
+        <span class="row-text"><span>{t("set.resolution")}</span><span class="row-hint">{t("set.resolution.hint")}</span></span>
+        <Select
+          label={t("set.resolution")}
           value={`${s.vcamWidth}x${s.vcamHeight}`}
-          onchange={(e) => {
-            const [w, h] = e.currentTarget.value.split("x").map(Number);
+          onchange={(v) => {
+            const [w, h] = v.split("x").map(Number);
             api.updateSettings({ vcamWidth: w, vcamHeight: h });
-          }}>
-          {#each sizes as [w, h]}<option value={`${w}x${h}`}>{w}×{h}</option>{/each}
-        </select>
-      </div>
-      <div class="row column">
-        <span class="text"><span>{t("set.rotation")}</span><span class="hint">{t("set.rotation.hint")}</span></span>
-        <Segmented
-          label={t("set.rotation")}
-          value={s.rotation}
-          onchange={(r) => api.updateSettings({ rotation: r })}
-          options={[0, 90, 180, 270].map((r) => ({ value: r as 0 | 90 | 180 | 270, label: `${r}°` }))} />
+          }}
+          options={sizes.map(([w, h]) => ({ value: `${w}x${h}`, label: `${w} × ${h}` }))} />
       </div>
     </div>
   </section>
 
-  <section>
+  <section class="section">
     <h2>{t("set.video")}</h2>
     <div class="card">
       <Toggle
@@ -80,7 +73,7 @@
     </div>
   </section>
 
-  <section>
+  <section class="section">
     <h2>{t("set.startup")}</h2>
     <div class="card">
       <Toggle label={t("set.launchAtLogin")} checked={s.launchAtLogin} onchange={(v) => api.updateSettings({ launchAtLogin: v })} />
@@ -93,11 +86,14 @@
     </div>
   </section>
 
-  <section>
+  <section class="section">
     <h2>{t("set.about")}</h2>
     <div class="card">
-      <div class="row"><span>Plugcam</span><span class="hint">{t("set.version", { v: __APP_VERSION__ })}</span></div>
-      <button class="row link" onclick={onwizard}>{t("set.rerunWizard")}</button>
+      <div class="row"><span>Plugcam</span><span class="row-hint">{t("set.version", { v: __APP_VERSION__ })}</span></div>
+      <button class="row link" onclick={onwizard}>
+        <span>{t("set.rerunWizard")}</span>
+        <ChevronRight size={16} />
+      </button>
     </div>
   </section>
 
@@ -105,92 +101,65 @@
 </div>
 
 <style>
-  .page {
+  .panel {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    padding: 12px 16px 16px;
   }
   header {
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-inline-start: -6px;
   }
   h1 {
     margin: 0;
     font-size: 20px;
     font-weight: 600;
+    line-height: 1.2;
   }
-  section {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  h2 {
-    margin: 0 4px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .card {
-    padding: 0;
-  }
-  .card > :global(* + *) {
-    border-top: 1px solid var(--stroke);
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 12px 16px;
-  }
-  .row.column {
+  .row.stacked {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
+    padding: 12px;
   }
-  .text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .hint {
-    font-size: 12px;
-    color: var(--text-2);
-  }
-  select {
-    min-height: 32px;
-    padding: 0 8px;
-    border-radius: 6px;
-    border: 1px solid var(--stroke);
-    background: var(--control);
-    color: var(--text);
-    font: inherit;
+  .slider {
+    padding-inline-end: 12px;
   }
   .slider input {
     flex: 1;
+    min-width: 0;
     accent-color: var(--accent);
   }
   .value {
-    min-width: 80px;
-    text-align: right;
+    min-width: 76px;
+    text-align: end;
     font-variant-numeric: tabular-nums;
   }
   .link {
     width: 100%;
     border: 0;
+    border-radius: 0 0 7px 7px;
     background: none;
-    color: var(--accent-text);
+    color: var(--text);
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
+    padding-inline-end: 12px;
+    transition-property: background-color;
+    transition-duration: 150ms;
   }
   .link:hover {
     background: var(--control-hover);
   }
+  .link :global(svg) {
+    color: var(--text-2);
+  }
   .note {
-    margin: 0 4px;
+    margin: 0 2px;
     font-size: 12px;
     color: var(--text-2);
+    text-wrap: pretty;
   }
 </style>

@@ -1,6 +1,7 @@
-//! Small JPEG preview of the camera picture for the app window, at most 15 fps and only
-//! while the window is visible. The pipeline only copies a frame into the slot; scaling and
-//! encoding happen on the preview thread so they never delay the virtual camera.
+//! Small JPEG preview of the camera picture for the app window, at most 40 fps (a 30 fps
+//! stream shows every frame) and only while the window is visible. The pipeline only copies
+//! a frame into the slot; scaling and encoding happen on the preview thread so they never
+//! delay the virtual camera.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex};
@@ -9,7 +10,7 @@ use std::time::{Duration, Instant};
 use fast_image_resize::images::{Image, ImageRef};
 use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer};
 
-const INTERVAL: Duration = Duration::from_millis(1000 / 15);
+const INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Default)]
 pub struct PreviewSlot {
@@ -36,7 +37,7 @@ impl PreviewSlot {
         self.enabled.load(Ordering::Relaxed)
     }
 
-    /// Called by the pipeline for every frame; copies at most 15 of them per second.
+    /// Called by the pipeline for every frame; copies at most 40 of them per second.
     pub fn offer(&self, bgr: &[u8], width: u32, height: u32) {
         if !self.is_enabled() {
             return;

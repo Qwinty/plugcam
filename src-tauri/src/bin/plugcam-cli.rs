@@ -1,6 +1,6 @@
 //! Console front end for stage 2: phone camera → "Plugcam Camera" without the GUI.
 //!
-//! While running, type a letter and Enter: t = torch, + / - = zoom, m = mirror, q = quit.
+//! While running, type a letter and Enter: t = torch, + / - = zoom, m = mirror, r = rotate, q = quit.
 
 use std::io::BufRead;
 use std::path::PathBuf;
@@ -140,6 +140,7 @@ fn run(args: Args) -> Result<(), String> {
     log::info!("Plugcam Camera is up at {}x{}", vcam.width(), vcam.height());
 
     let mut mirror = args.mirror;
+    let mut rotation = 0u16;
     let pipeline = Pipeline::start(
         PipelineConfig {
             adb,
@@ -147,6 +148,7 @@ fn run(args: Args) -> Result<(), String> {
             serial: args.serial,
             camera: args.camera.clone(),
             mirror,
+            rotation: 0,
             dump: args.dump,
             preview: None,
         },
@@ -154,7 +156,7 @@ fn run(args: Args) -> Result<(), String> {
         |_| {},
     );
 
-    println!("commands: t = torch, + / - = zoom, m = mirror, q = quit");
+    println!("commands: t = torch, + / - = zoom, m = mirror, r = rotate 90, q = quit");
     let mut torch = args.camera.torch;
     for line in std::io::stdin().lock().lines() {
         let Ok(line) = line else { break };
@@ -169,6 +171,11 @@ fn run(args: Args) -> Result<(), String> {
             "m" => {
                 mirror = !mirror;
                 pipeline.set_mirror(mirror);
+                Ok(())
+            }
+            "r" => {
+                rotation = (rotation + 90) % 360;
+                pipeline.set_rotation(rotation);
                 Ok(())
             }
             "" => Ok(()),

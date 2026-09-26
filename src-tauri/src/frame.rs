@@ -1,5 +1,5 @@
 //! Decoded NV12 picture → BGR frame of the virtual camera: color conversion, scaling to fit
-//! with black bars, and optional mirroring.
+//! with black bars, and optional rotation and mirroring.
 
 use fast_image_resize::images::{Image, ImageRef};
 use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer};
@@ -62,6 +62,8 @@ pub struct FrameConverter {
     out_width: u32,
     out_height: u32,
     mirror: bool,
+    /// Clockwise degrees: 0, 90, 180 or 270.
+    rotation: u16,
     placement: Option<Placement>,
     src_bgr: Vec<u8>,
     scaled: Vec<u8>,
@@ -69,6 +71,8 @@ pub struct FrameConverter {
     /// Tightly packed copies of padded planes (see `convert`).
     packed_y: Vec<u8>,
     packed_uv: Vec<u8>,
+    rotated_y: Vec<u8>,
+    rotated_uv: Vec<[u8; 2]>,
     resizer: Resizer,
 }
 
@@ -78,18 +82,26 @@ impl FrameConverter {
             out_width,
             out_height,
             mirror: false,
+            rotation: 0,
             placement: None,
             src_bgr: Vec::new(),
             scaled: Vec::new(),
             out: vec![0; out_width as usize * out_height as usize * 3],
             packed_y: Vec::new(),
             packed_uv: Vec::new(),
+            rotated_y: Vec::new(),
+            rotated_uv: Vec::new(),
             resizer: Resizer::new(),
         }
     }
 
     pub fn set_mirror(&mut self, mirror: bool) {
         self.mirror = mirror;
+    }
+
+    /// Clockwise degrees; anything but 90, 180 or 270 means no rotation.
+    pub fn set_rotation(&mut self, degrees: u16) {
+        self.rotation = if matches!(degrees, 90 | 180 | 270) { degrees } else { 0 };
     }
 
     /// The last output frame (black until the first `convert`).
@@ -104,7 +116,26 @@ impl FrameConverter {
     }
 
     pub fn convert(&mut self, frame: &Nv12Frame) -> Result<&[u8], FrameError> {
-        let (w, h) = (frame.width, frame.height);
+        // Rotating NV12 before the color conversion moves half the bytes BGR would.
+        let (w, h, y_plane, uv_plane) = if self.rotation != 0 {
+            let (cw, ch) = (frame.width.div_ceil(2) as usize, frame.height.div_ceil(2) as usize);
+            let (w, h) = (frame.width as usize, frame.height as usize);
+            rotate(frame.y, frame.y_stride as usize, w, h, self.rotation, &mut self.rotated_y);
+            let (uv_pairs, _) = frame.uv.as_chunks::<2>();
+            rotate(uv_pairs, frame.uv_stride as usize / 2, cw, ch, self.rotation, &mut self.rotated_uv);
+            let (w, h) = if self.rotation == 180 { (frame.width, frame.height) } else { (frame.height, frame.width) };
+            (w, h, &self.rotated_y[..], self.rotated_uv.as_flattened())
+        } else if frame.y_stride == frame.width && frame.uv_stride == frame.width {
+            (frame.width, frame.height, frame.y, frame.uv)
+        } else {
+            // yuvutils-rs 0.8 rejects an interleaved UV plane whose stride is wider than the
+            // picture, which is what the decoder gives for 1080-wide video: stride 1088.
+            let (w, h) = (frame.width, frame.height);
+            pack(&mut self.packed_y, frame.y, frame.y_stride, w, h);
+            pack(&mut self.packed_uv, frame.uv, frame.uv_stride, w.div_ceil(2) * 2, h.div_ceil(2));
+            (w, h, &self.packed_y[..], &self.packed_uv[..])
+        };
+
         let place = fit(w, h, self.out_width, self.out_height);
         if self.placement != Some(place) {
             // Bars are only painted when the geometry changes; frames overwrite the picture area.
@@ -113,15 +144,6 @@ impl FrameConverter {
         }
 
         self.src_bgr.resize(w as usize * h as usize * 3, 0);
-        // yuvutils-rs 0.8 rejects an interleaved UV plane whose stride is wider than the picture,
-        // which is what the decoder gives for 1080-wide (rotated) video: stride 1088.
-        let (y_plane, uv_plane) = if frame.y_stride == w && frame.uv_stride == w {
-            (frame.y, frame.uv)
-        } else {
-            pack(&mut self.packed_y, frame.y, frame.y_stride, w, h);
-            pack(&mut self.packed_uv, frame.uv, frame.uv_stride, w.div_ceil(2) * 2, h.div_ceil(2));
-            (&self.packed_y[..], &self.packed_uv[..])
-        };
         let yuv = YuvBiPlanarImage {
             y_plane,
             y_stride: w,
@@ -160,6 +182,29 @@ impl FrameConverter {
             }
         }
         Ok(&self.out)
+    }
+}
+
+/// Rotates a `w`x`h` plane (rows `stride` elements apart) clockwise into a tight buffer.
+/// Works in tiles so both the reads and the scattered writes stay in cache.
+fn rotate<T: Copy + Default>(src: &[T], stride: usize, w: usize, h: usize, degrees: u16, dst: &mut Vec<T>) {
+    const TILE: usize = 32;
+    dst.clear();
+    dst.resize(w * h, T::default());
+    for tile_y in (0..h).step_by(TILE) {
+        for tile_x in (0..w).step_by(TILE) {
+            for y in tile_y..(tile_y + TILE).min(h) {
+                let row = &src[y * stride..y * stride + w];
+                for x in tile_x..(tile_x + TILE).min(w) {
+                    let i = match degrees {
+                        90 => x * h + (h - 1 - y),
+                        180 => (h - 1 - y) * w + (w - 1 - x),
+                        _ => (w - 1 - x) * h + y,
+                    };
+                    dst[i] = row[x];
+                }
+            }
+        }
     }
 }
 
@@ -265,6 +310,44 @@ mod tests {
         for x in 0..w {
             assert!(close(pixel(out, w, x, 3), [255, 255, 255]), "x={x}");
         }
+    }
+
+    #[test]
+    fn rotate_plane() {
+        // 3x2 with stride 4:  1 2 3 .
+        //                     4 5 6 .
+        let src = [1u8, 2, 3, 0, 4, 5, 6, 0];
+        let mut dst = Vec::new();
+        rotate(&src, 4, 3, 2, 90, &mut dst);
+        assert_eq!(dst, [4, 1, 5, 2, 6, 3]);
+        rotate(&src, 4, 3, 2, 180, &mut dst);
+        assert_eq!(dst, [6, 5, 4, 3, 2, 1]);
+        rotate(&src, 4, 3, 2, 270, &mut dst);
+        assert_eq!(dst, [3, 6, 2, 5, 1, 4]);
+    }
+
+    #[test]
+    fn rotation_turns_the_picture() {
+        // 8x4, left half white: turned 90 degrees clockwise into a 4x8 frame, white is on top.
+        let (w, h) = (8u32, 4u32);
+        let y: Vec<u8> = (0..w * h).map(|i| if i % w < w / 2 { 255 } else { 0 }).collect();
+        let uv = vec![128u8; (w * h / 2) as usize];
+        let mut conv = FrameConverter::new(h, w);
+        conv.set_rotation(90);
+        let out = conv.convert(&frame(w, h, &y, &uv)).unwrap().to_vec();
+        assert!(close(pixel(&out, h, 1, 1), [255, 255, 255]));
+        assert!(close(pixel(&out, h, 1, 6), [0, 0, 0]));
+        conv.set_rotation(270);
+        let out = conv.convert(&frame(w, h, &y, &uv)).unwrap().to_vec();
+        assert!(close(pixel(&out, h, 1, 1), [0, 0, 0]));
+        assert!(close(pixel(&out, h, 1, 6), [255, 255, 255]));
+
+        // 180 keeps the size and moves the white half to the right.
+        let mut conv = FrameConverter::new(w, h);
+        conv.set_rotation(180);
+        let out = conv.convert(&frame(w, h, &y, &uv)).unwrap();
+        assert!(close(pixel(out, w, 0, 1), [0, 0, 0]));
+        assert!(close(pixel(out, w, 7, 1), [255, 255, 255]));
     }
 
     #[test]

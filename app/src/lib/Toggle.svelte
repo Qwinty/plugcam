@@ -1,38 +1,30 @@
 <script lang="ts">
-  // Windows-style switch with its label and an optional hint line.
+  // Windows-style switch as a card row, with its label and an optional hint line.
   let {
     checked,
     label,
     hint = "",
+    disabled = false,
     onchange,
-  }: { checked: boolean; label: string; hint?: string; onchange: (v: boolean) => void } = $props();
+  }: { checked: boolean; label: string; hint?: string; disabled?: boolean; onchange: (v: boolean) => void } = $props();
 </script>
 
-<label class="row">
-  <span class="text">
+<label class="row" class:disabled>
+  <span class="row-text">
     <span>{label}</span>
-    {#if hint}<span class="hint">{hint}</span>{/if}
+    {#if hint}<span class="row-hint">{hint}</span>{/if}
   </span>
-  <input type="checkbox" role="switch" {checked} onchange={(e) => onchange(e.currentTarget.checked)} />
+  <input type="checkbox" role="switch" {checked} {disabled} onchange={(e) => onchange(e.currentTarget.checked)} />
 </label>
 
 <style>
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 12px 16px;
+  label {
     cursor: pointer;
+    padding-inline-end: 12px;
   }
-  .text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .hint {
-    font-size: 12px;
-    color: var(--text-2);
+  .disabled {
+    color: var(--text-3);
+    cursor: default;
   }
   input {
     appearance: none;
@@ -45,7 +37,8 @@
     background: transparent;
     position: relative;
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
+    transition-property: background-color, border-color;
+    transition-duration: 150ms;
   }
   input::after {
     content: "";
@@ -56,15 +49,24 @@
     height: 12px;
     border-radius: 50%;
     background: var(--text-2);
-    transition: transform 0.15s, background 0.15s;
+    transition-property: translate, background-color;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
   }
   input:checked {
     background: var(--accent);
     border-color: var(--accent);
   }
   input:checked::after {
-    transform: translateX(20px);
+    translate: 20px 0;
     background: var(--on-accent);
+  }
+  input:disabled {
+    border-color: var(--text-3);
+    cursor: default;
+  }
+  input:disabled::after {
+    background: var(--text-3);
   }
   input:focus-visible {
     outline: 2px solid var(--text);

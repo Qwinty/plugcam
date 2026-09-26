@@ -14,9 +14,9 @@
       {
         "label": "main",
         "title": "Plugcam",
-        "width": 420,
-        "height": 640,
-        "minWidth": 380,
+        "width": 980,
+        "height": 660,
+        "minWidth": 760,
         "minHeight": 560,
         "center": true,
         "visible": false,

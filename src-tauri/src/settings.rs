@@ -19,7 +19,7 @@ pub struct Settings {
     pub camera_id: Option<String>,
     pub quality: Quality,
     pub mirror: bool,
-    /// 0, 90, 180 or 270.
+    /// Clockwise degrees of the picture: 0, 90, 180 or 270.
     pub rotation: u16,
     /// `None` = automatic, by quality.
     pub bitrate_mbps: Option<u32>,
@@ -112,7 +112,7 @@ impl Settings {
             fps: 30,
             high_speed: false,
             bit_rate: Some(self.bitrate()),
-            orientation: self.rotation,
+            orientation: 0, // rotation is done on the PC, see `PipelineConfig::rotation`
             torch: false,
             zoom: None,
         }

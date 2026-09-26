@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@lucide/svelte':
+        specifier: ^1.48.0
+        version: 1.48.0(svelte@5.57.1)
       '@tauri-apps/api':
         specifier: ^2.11.1
         version: 2.11.1
@@ -51,6 +54,11 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@lucide/svelte@1.48.0':
+    resolution: {integrity: sha512-bLimVDjehxu3fpu9XEUpqEkBk2sJAHAT2sVcLHhlM70EdNsXuj9ZnYENWv5xgw3+05h4i5TirAxTiTgnZZf8gw==}
+    peerDependencies:
+      svelte: ^5
 
   '@oxc-project/types@0.151.0':
     resolution: {integrity: sha512-J1yXrIlNDZVzE3ada310xeAw7nH8yCAyLPuUIsjKatFPmfn5bS1oW+cM+QsGOtVWd5nhSpbwZWx/rue+r5Z+PA==}
@@ -534,6 +542,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@lucide/svelte@1.48.0(svelte@5.57.1)':
+    dependencies:
+      svelte: 5.57.1
 
   '@oxc-project/types@0.151.0': {}
 

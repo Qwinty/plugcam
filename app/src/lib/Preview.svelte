@@ -1,12 +1,26 @@
 <script lang="ts">
-  // Small live copy of what "Plugcam Camera" shows. Frames come as JPEG over a Tauri channel,
+  // Live copy of what "Plugcam Camera" shows. Frames come as JPEG over a Tauri channel,
   // and only while the window is visible.
   import { onMount } from "svelte";
+  import { Video, LoaderCircle } from "@lucide/svelte";
   import { subscribePreview, onPreviewClear, setPreviewActive } from "./api";
-  import { t } from "./i18n";
-  import Icon from "./Icon.svelte";
 
-  let { streaming, cameraOn }: { streaming: boolean; cameraOn: boolean } = $props();
+  let {
+    streaming,
+    cameraOn,
+    live,
+    empty,
+    waiting,
+  }: {
+    streaming: boolean;
+    cameraOn: boolean;
+    /** Chip over the picture while streaming, e.g. "30 fps". */
+    live: string;
+    /** What the stage says with no picture and the camera off. */
+    empty: { title: string; hint: string };
+    /** What it says while the camera is on but no frame has come yet. */
+    waiting: { title: string; hint: string };
+  } = $props();
 
   let canvas: HTMLCanvasElement;
   let hasFrame = $state(false);
@@ -47,31 +61,48 @@
   });
 </script>
 
-<div class="frame" class:dim={cameraOn && !streaming && hasFrame}>
-  <canvas bind:this={canvas} width="640" height="360" class:hidden={!hasFrame}></canvas>
+<div class="stage" class:dim={cameraOn && !streaming && hasFrame}>
+  <canvas bind:this={canvas} width="960" height="540" class:hidden={!hasFrame}></canvas>
+
   {#if !hasFrame}
     <div class="empty">
-      <Icon name="video" size={28} />
-      <span>{cameraOn ? t("preview.waiting") : t("preview.off")}</span>
+      {#if cameraOn}
+        <LoaderCircle size={28} class="spin" aria-hidden="true" />
+        <span class="title">{waiting.title}</span>
+        {#if waiting.hint}<span class="hint">{waiting.hint}</span>{/if}
+      {:else}
+        <Video size={32} aria-hidden="true" />
+        <span class="title">{empty.title}</span>
+        {#if empty.hint}<span class="hint">{empty.hint}</span>{/if}
+      {/if}
     </div>
+  {/if}
+
+  {#if streaming && hasFrame}
+    <div class="chip" aria-hidden="true"><span class="dot"></span>{live}</div>
   {/if}
 </div>
 
 <style>
-  .frame {
+  .stage {
     position: relative;
-    aspect-ratio: 16 / 9;
+    height: 100%;
+    min-height: 0;
     border-radius: 8px;
     overflow: hidden;
-    background: var(--preview-bg);
-    border: 1px solid var(--stroke);
+    background: var(--stage);
+    outline: 1px solid var(--stage-outline);
+    outline-offset: -1px;
   }
   canvas {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: contain;
     display: block;
-    transition: opacity 0.2s;
+    transition-property: opacity;
+    transition-duration: 200ms;
   }
   .hidden {
     visibility: hidden;
@@ -87,9 +118,56 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 16px;
+    padding: 24px;
     text-align: center;
-    color: var(--text-2);
+    color: var(--stage-text);
+  }
+  .title {
+    margin-top: 4px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    text-wrap: balance;
+  }
+  .hint {
+    max-width: 36ch;
     font-size: 13px;
+    text-wrap: pretty;
+  }
+  .empty :global(.spin) {
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      rotate: 360deg;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .empty :global(.spin) {
+      animation: none;
+    }
+  }
+  .chip {
+    position: absolute;
+    inset-block-start: 12px;
+    inset-inline-start: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px 0 8px;
+    border-radius: 12px;
+    background: rgb(0 0 0 / 0.55);
+    backdrop-filter: blur(8px);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f03a2e;
   }
 </style>

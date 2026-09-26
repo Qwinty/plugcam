@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -33,6 +33,8 @@ pub struct PipelineConfig {
     pub serial: Option<String>,
     pub camera: CameraParams,
     pub mirror: bool,
+    /// Clockwise degrees, turned on the PC so it can change without restarting the stream.
+    pub rotation: u16,
     /// Record the raw video stream (packets after the codec id) for test fixtures.
     pub dump: Option<PathBuf>,
     /// Where to offer frames for the app window's preview.
@@ -62,6 +64,7 @@ pub struct Stats {
 struct Shared {
     stop: AtomicBool,
     mirror: AtomicBool,
+    rotation: AtomicU16,
     video: Mutex<Option<TcpStream>>,
     control: Mutex<Option<TcpStream>>,
     stats: Mutex<Stats>,
@@ -77,6 +80,7 @@ impl Pipeline {
         let shared = Arc::new(Shared {
             stop: AtomicBool::new(false),
             mirror: AtomicBool::new(config.mirror),
+            rotation: AtomicU16::new(config.rotation),
             video: Mutex::new(None),
             control: Mutex::new(None),
             stats: Mutex::new(Stats::default()),
@@ -99,6 +103,10 @@ impl Pipeline {
 
     pub fn set_mirror(&self, on: bool) {
         self.shared.mirror.store(on, Ordering::Relaxed);
+    }
+
+    pub fn set_rotation(&self, degrees: u16) {
+        self.shared.rotation.store(degrees, Ordering::Relaxed);
     }
 
     pub fn stats(&self) -> Stats {
@@ -275,6 +283,7 @@ fn stream(
             Packet::Frame { pts_us, data, .. } => {
                 let Some(d) = decoder.as_mut() else { continue };
                 converter.set_mirror(shared.mirror.load(Ordering::Relaxed));
+                converter.set_rotation(shared.rotation.load(Ordering::Relaxed));
                 d.decode(&data, pts_us, &mut |picture| match converter.convert(picture) {
                     Ok(bgr) => {
                         vcam.send_frame(bgr);
