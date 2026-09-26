@@ -1,0 +1,10 @@
+/target/
+**/target/
+node_modules/
+dist/
+*.user
+.vs/
+vcam/**/x64/
+vcam/**/Win32/
+vcam/**/Release/
+vcam/**/Debug/
