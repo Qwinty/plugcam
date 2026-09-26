@@ -11,5 +11,11 @@ name = "plugcam"
 path = "src/lib.rs"
 
 [dependencies]
+env_logger = "0.11.11"
+fast_image_resize = "6.1.0"
 libloading = "0.8"
+log = "0.4.34"
+sha2 = "0.11.0"
 thiserror = "2"
+windows = { version = "0.62.2", features = ["Win32_Media_MediaFoundation", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_Foundation"] }
+yuvutils-rs = "0.8.3"
