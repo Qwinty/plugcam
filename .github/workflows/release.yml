@@ -49,7 +49,8 @@ jobs:
           $notes = "docs/releases/$tag.md"
           if (-not (Test-Path $notes)) { $notes = $null }
           if (gh release view $tag 2>$null) {
-            gh release upload $tag $installer.FullName "$($installer.FullName).sha256" --clobber
+            # Made by hand (publishing a draft creates the tag): keep the files it was tested with.
+            Write-Output "Release $tag already exists; leaving its files alone."
           } elseif ($notes) {
             gh release create $tag $installer.FullName "$($installer.FullName).sha256" --draft --title "Plugcam $tag" --notes-file $notes
           } else {
