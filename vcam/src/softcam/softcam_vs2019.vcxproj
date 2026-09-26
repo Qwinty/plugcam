@@ -98,19 +98,19 @@
       <AdditionalDependencies>winmm.lib;msvcrtd.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>@if not exist $(SolutionDir)dist mkdir $(SolutionDir)dist
-@if not exist $(SolutionDir)dist\include mkdir $(SolutionDir)dist\include
-@if not exist $(SolutionDir)dist\include\softcam mkdir $(SolutionDir)dist\include\softcam
-@if not exist $(SolutionDir)dist\lib mkdir $(SolutionDir)dist\lib
-@if not exist $(SolutionDir)dist\lib\$(Platform) mkdir $(SolutionDir)dist\lib\$(Platform)
-@if not exist $(SolutionDir)dist\bin mkdir $(SolutionDir)dist\bin
-@if not exist $(SolutionDir)dist\bin\$(Platform) mkdir $(SolutionDir)dist\bin\$(Platform)
+      <Command>@if not exist "$(SolutionDir)dist" mkdir "$(SolutionDir)dist"
+@if not exist "$(SolutionDir)dist\include" mkdir "$(SolutionDir)dist\include"
+@if not exist "$(SolutionDir)dist\include\softcam" mkdir "$(SolutionDir)dist\include\softcam"
+@if not exist "$(SolutionDir)dist\lib" mkdir "$(SolutionDir)dist\lib"
+@if not exist "$(SolutionDir)dist\lib\$(Platform)" mkdir "$(SolutionDir)dist\lib\$(Platform)"
+@if not exist "$(SolutionDir)dist\bin" mkdir "$(SolutionDir)dist\bin"
+@if not exist "$(SolutionDir)dist\bin\$(Platform)" mkdir "$(SolutionDir)dist\bin\$(Platform)"
 @echo softcam.h -^&gt; ...dist\include\softcam\
-@copy /y $(ProjectDir)softcam.h $(SolutionDir)dist\include\softcam
+@copy /y "$(ProjectDir)softcam.h" "$(SolutionDir)dist\include\softcam"
 @echo $(TargetName).lib -^&gt; ...dist\lib\$(Platform)\
-@copy /y $(TargetDir)$(TargetName).lib $(SolutionDir)dist\lib\$(Platform)
+@copy /y "$(TargetDir)$(TargetName).lib" "$(SolutionDir)dist\lib\$(Platform)"
 @echo $(TargetName).dll -^&gt; ...dist\bin\$(Platform)\
-@copy /y $(TargetDir)$(TargetName).dll $(SolutionDir)dist\bin\$(Platform)
+@copy /y "$(TargetDir)$(TargetName).dll" "$(SolutionDir)dist\bin\$(Platform)"
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
@@ -135,19 +135,19 @@
       <AdditionalDependencies>winmm.lib;msvcrtd.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>@if not exist $(SolutionDir)dist mkdir $(SolutionDir)dist
-@if not exist $(SolutionDir)dist\include mkdir $(SolutionDir)dist\include
-@if not exist $(SolutionDir)dist\include\softcam mkdir $(SolutionDir)dist\include\softcam
-@if not exist $(SolutionDir)dist\lib mkdir $(SolutionDir)dist\lib
-@if not exist $(SolutionDir)dist\lib\$(Platform) mkdir $(SolutionDir)dist\lib\$(Platform)
-@if not exist $(SolutionDir)dist\bin mkdir $(SolutionDir)dist\bin
-@if not exist $(SolutionDir)dist\bin\$(Platform) mkdir $(SolutionDir)dist\bin\$(Platform)
+      <Command>@if not exist "$(SolutionDir)dist" mkdir "$(SolutionDir)dist"
+@if not exist "$(SolutionDir)dist\include" mkdir "$(SolutionDir)dist\include"
+@if not exist "$(SolutionDir)dist\include\softcam" mkdir "$(SolutionDir)dist\include\softcam"
+@if not exist "$(SolutionDir)dist\lib" mkdir "$(SolutionDir)dist\lib"
+@if not exist "$(SolutionDir)dist\lib\$(Platform)" mkdir "$(SolutionDir)dist\lib\$(Platform)"
+@if not exist "$(SolutionDir)dist\bin" mkdir "$(SolutionDir)dist\bin"
+@if not exist "$(SolutionDir)dist\bin\$(Platform)" mkdir "$(SolutionDir)dist\bin\$(Platform)"
 @echo softcam.h -^&gt; ...dist\include\softcam\
-@copy /y $(ProjectDir)softcam.h $(SolutionDir)dist\include\softcam
+@copy /y "$(ProjectDir)softcam.h" "$(SolutionDir)dist\include\softcam"
 @echo $(TargetName).lib -^&gt; ...dist\lib\$(Platform)\
-@copy /y $(TargetDir)$(TargetName).lib $(SolutionDir)dist\lib\$(Platform)
+@copy /y "$(TargetDir)$(TargetName).lib" "$(SolutionDir)dist\lib\$(Platform)"
 @echo $(TargetName).dll -^&gt; ...dist\bin\$(Platform)\
-@copy /y $(TargetDir)$(TargetName).dll $(SolutionDir)dist\bin\$(Platform)
+@copy /y "$(TargetDir)$(TargetName).dll" "$(SolutionDir)dist\bin\$(Platform)"
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
@@ -173,19 +173,19 @@
       <AdditionalDependencies>winmm.lib;msvcrt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>@if not exist $(SolutionDir)dist mkdir $(SolutionDir)dist
-@if not exist $(SolutionDir)dist\include mkdir $(SolutionDir)dist\include
-@if not exist $(SolutionDir)dist\include\softcam mkdir $(SolutionDir)dist\include\softcam
-@if not exist $(SolutionDir)dist\lib mkdir $(SolutionDir)dist\lib
-@if not exist $(SolutionDir)dist\lib\$(Platform) mkdir $(SolutionDir)dist\lib\$(Platform)
-@if not exist $(SolutionDir)dist\bin mkdir $(SolutionDir)dist\bin
-@if not exist $(SolutionDir)dist\bin\$(Platform) mkdir $(SolutionDir)dist\bin\$(Platform)
+      <Command>@if not exist "$(SolutionDir)dist" mkdir "$(SolutionDir)dist"
+@if not exist "$(SolutionDir)dist\include" mkdir "$(SolutionDir)dist\include"
+@if not exist "$(SolutionDir)dist\include\softcam" mkdir "$(SolutionDir)dist\include\softcam"
+@if not exist "$(SolutionDir)dist\lib" mkdir "$(SolutionDir)dist\lib"
+@if not exist "$(SolutionDir)dist\lib\$(Platform)" mkdir "$(SolutionDir)dist\lib\$(Platform)"
+@if not exist "$(SolutionDir)dist\bin" mkdir "$(SolutionDir)dist\bin"
+@if not exist "$(SolutionDir)dist\bin\$(Platform)" mkdir "$(SolutionDir)dist\bin\$(Platform)"
 @echo softcam.h -^&gt; ...dist\include\softcam\
-@copy /y $(ProjectDir)softcam.h $(SolutionDir)dist\include\softcam
+@copy /y "$(ProjectDir)softcam.h" "$(SolutionDir)dist\include\softcam"
 @echo $(TargetName).lib -^&gt; ...dist\lib\$(Platform)\
-@copy /y $(TargetDir)$(TargetName).lib $(SolutionDir)dist\lib\$(Platform)
+@copy /y "$(TargetDir)$(TargetName).lib" "$(SolutionDir)dist\lib\$(Platform)"
 @echo $(TargetName).dll -^&gt; ...dist\bin\$(Platform)\
-@copy /y $(TargetDir)$(TargetName).dll $(SolutionDir)dist\bin\$(Platform)
+@copy /y "$(TargetDir)$(TargetName).dll" "$(SolutionDir)dist\bin\$(Platform)"
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
@@ -211,19 +211,19 @@
       <AdditionalDependencies>winmm.lib;msvcrt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>@if not exist $(SolutionDir)dist mkdir $(SolutionDir)dist
-@if not exist $(SolutionDir)dist\include mkdir $(SolutionDir)dist\include
-@if not exist $(SolutionDir)dist\include\softcam mkdir $(SolutionDir)dist\include\softcam
-@if not exist $(SolutionDir)dist\lib mkdir $(SolutionDir)dist\lib
-@if not exist $(SolutionDir)dist\lib\$(Platform) mkdir $(SolutionDir)dist\lib\$(Platform)
-@if not exist $(SolutionDir)dist\bin mkdir $(SolutionDir)dist\bin
-@if not exist $(SolutionDir)dist\bin\$(Platform) mkdir $(SolutionDir)dist\bin\$(Platform)
+      <Command>@if not exist "$(SolutionDir)dist" mkdir "$(SolutionDir)dist"
+@if not exist "$(SolutionDir)dist\include" mkdir "$(SolutionDir)dist\include"
+@if not exist "$(SolutionDir)dist\include\softcam" mkdir "$(SolutionDir)dist\include\softcam"
+@if not exist "$(SolutionDir)dist\lib" mkdir "$(SolutionDir)dist\lib"
+@if not exist "$(SolutionDir)dist\lib\$(Platform)" mkdir "$(SolutionDir)dist\lib\$(Platform)"
+@if not exist "$(SolutionDir)dist\bin" mkdir "$(SolutionDir)dist\bin"
+@if not exist "$(SolutionDir)dist\bin\$(Platform)" mkdir "$(SolutionDir)dist\bin\$(Platform)"
 @echo softcam.h -^&gt; ...dist\include\softcam\
-@copy /y $(ProjectDir)softcam.h $(SolutionDir)dist\include\softcam
+@copy /y "$(ProjectDir)softcam.h" "$(SolutionDir)dist\include\softcam"
 @echo $(TargetName).lib -^&gt; ...dist\lib\$(Platform)\
-@copy /y $(TargetDir)$(TargetName).lib $(SolutionDir)dist\lib\$(Platform)
+@copy /y "$(TargetDir)$(TargetName).lib" "$(SolutionDir)dist\lib\$(Platform)"
 @echo $(TargetName).dll -^&gt; ...dist\bin\$(Platform)\
-@copy /y $(TargetDir)$(TargetName).dll $(SolutionDir)dist\bin\$(Platform)
+@copy /y "$(TargetDir)$(TargetName).dll" "$(SolutionDir)dist\bin\$(Platform)"
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>

@@ -164,7 +164,7 @@ CUnknown * Softcam::CreateInstance(
 }
 
 Softcam::Softcam(LPUNKNOWN lpunk, const GUID& clsid, HRESULT *phr) :
-    CSource(NAME("DirectShow Softcam"), lpunk, clsid),
+    CSource(NAME("Plugcam Camera"), lpunk, clsid),
     m_frame_buffer(FrameBuffer::open()),
     m_valid(m_frame_buffer ? true : false),
     m_width(m_frame_buffer.width()),
@@ -175,7 +175,7 @@ Softcam::Softcam(LPUNKNOWN lpunk, const GUID& clsid, HRESULT *phr) :
     // Calling the SoftcamStream constructor results in calling the CBaseOutputPin
     // constructor which registers the instance to this Softcam instance by calling
     // CSource::AddPin().
-    (void)new SoftcamStream(phr, this, L"DirectShow Softcam Stream");
+    (void)new SoftcamStream(phr, this, L"Plugcam Camera Stream");
 }
 
 
@@ -368,7 +368,7 @@ Softcam::releaseFrameBuffer()
 SoftcamStream::SoftcamStream(HRESULT *phr,
                          Softcam *pParent,
                          LPCWSTR pPinName) :
-    CSourceStream(NAME("DirectShow Softcam Stream"), phr, pParent, pPinName),
+    CSourceStream(NAME("Plugcam Camera Stream"), phr, pParent, pPinName),
     m_valid(pParent->valid()),
     m_width(pParent->width()),
     m_height(pParent->height())
@@ -452,6 +452,15 @@ HRESULT SoftcamStream::FillBuffer(IMediaSample *pms)
 
         CAutoLock lock(&m_critsec);
         CRefTime start = m_sample_time;
+        // Plugcam: a live source (framerate 0) delivers frames at the phone's pace, so
+        // stamp each one with the real stream time. The fixed 60 fps step would make
+        // timestamps drift behind the clock and let renderers pile up latency.
+        CRefTime now;
+        if (getParent()->framerate() <= 0.0f && SUCCEEDED(m_pFilter->StreamTime(now)))
+        {
+            start = now;
+        }
+        m_sample_time = start;
         m_sample_time += (LONG)m_interval_time_msec;
         pms->SetTime((REFERENCE_TIME*)&start,(REFERENCE_TIME*)&m_sample_time);
     }

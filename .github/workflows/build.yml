@@ -1,0 +1,32 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: microsoft/setup-msbuild@v3
+
+      - name: Build plugcam_cam.dll (x64, Win32)
+        run: |
+          foreach ($platform in 'x64', 'Win32') {
+            msbuild vcam/softcam.sln /t:softcam /p:Configuration=Release /p:Platform=$platform /m /v:minimal /nologo
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+
+      - name: Rust build and tests
+        working-directory: src-tauri
+        run: |
+          cargo build --release --all-targets
+          cargo test --release
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plugcam_cam
+          path: vcam/dist/bin/**/plugcam_cam.dll

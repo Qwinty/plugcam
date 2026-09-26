@@ -8,3 +8,4 @@ vcam/**/x64/
 vcam/**/Win32/
 vcam/**/Release/
 vcam/**/Debug/
+vcam/dist/

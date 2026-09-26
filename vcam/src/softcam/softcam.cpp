@@ -7,16 +7,17 @@
 #include <softcamcore/SenderAPI.h>
 
 
-// {AEF3B972-5FA5-4647-9571-358EB472BC9E}
+// Plugcam: own CLSID so it never collides with other Softcam-based cameras
+// {518D4949-2206-4A92-B74A-6CF1C7348605}
 DEFINE_GUID(CLSID_DShowSoftcam,
-0xaef3b972, 0x5fa5, 0x4647, 0x95, 0x71, 0x35, 0x8e, 0xb4, 0x72, 0xbc, 0x9e);
+0x518d4949, 0x2206, 0x4a92, 0xb7, 0x4a, 0x6c, 0xf1, 0xc7, 0x34, 0x86, 0x05);
 
 
 namespace {
 
 // Setup data
 
-const wchar_t FILTER_NAME[] = L"DirectShow Softcam";
+const wchar_t FILTER_NAME[] = L"Plugcam Camera";
 const GUID &FILTER_CLASSID = CLSID_DShowSoftcam;
 
 const AMOVIESETUP_MEDIATYPE s_pin_types[] =

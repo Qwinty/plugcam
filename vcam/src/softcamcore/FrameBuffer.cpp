@@ -7,8 +7,8 @@
 namespace softcam {
 
 
-const char NamedMutexName[] = "DirectShow Softcam/NamedMutex";
-const char SharedMemoryName[] = "DirectShow Softcam/SharedMemory";
+const char NamedMutexName[] = "Plugcam Camera/NamedMutex";
+const char SharedMemoryName[] = "Plugcam Camera/SharedMemory";
 const uint8_t ProtocolVersion = 2;
 
 
