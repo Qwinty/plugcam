@@ -6,7 +6,8 @@
 
 <p align="center">
   <b>Seu celular Android como webcam no Windows.</b><br>
-  Um cabo, um botão. Sem app no celular, sem marca d’água, grátis e de código aberto.
+  Um cabo, um botão. Sem app no celular, sem OBS, sem marca d’água.<br>
+  Uma alternativa grátis e de código aberto ao DroidCam, Iriun e iVCam.
 </p>
 
 <p align="center">
@@ -21,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="../screenshots/main-light-en.png" width="860" alt="Plugcam mostrando a câmera do celular, com os controles à direita">
+  <img src="../screenshots/main-light-pt-BR.png" width="860" alt="Plugcam mostrando a câmera do celular, com os controles à direita">
 </p>
 
 ## Por que o Plugcam
@@ -31,7 +32,7 @@
 - **Imagem boa.** Até 1080p a 30 fps, ou 60 fps em celulares compatíveis. O celular codifica H.264 por hardware, o chip gráfico do PC decodifica, e o PC quase não sente.
 - **Todos os controles que você espera.** Câmera traseira ou frontal e cada lente, zoom com 1×/2×/5×, lanterna, rotação para celular em pé, imagem espelhada, além de brilho, contraste, saturação e temperatura.
 - **Grátis para sempre.** Sem marca d’água, sem limite de tempo, sem conta, sem telemetria. Apache-2.0.
-- **Leve.** Um download de 7,4 MB. Na bandeja, ocupa 8 MB de memória; transmitindo de lá, menos de 1% da CPU. As atualizações se instalam sozinhas com um clique.
+- **Leve.** Um download de 7,4 MB. Na bandeja, ocupa 7 MB de memória; transmitindo de lá, menos de 1% da CPU. As atualizações se instalam sozinhas com um clique.
 - **Fala a sua língua.** 13 idiomas, incluindo o português.
 
 ## Comparação
@@ -45,26 +46,38 @@ Os apps que as pessoas costumam testar primeiro, em setembro de 2026. Os planos 
 | Anúncios | **não** | sim | sim | sim | não | não |
 | Conexão | USB | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | Wi-Fi + Bluetooth |
 | Código aberto | **sim, Apache-2.0** | só o cliente para PC | não | não | não | não |
-| Download para Windows | **7,4 MB** | 98 MB | 2,6 MB | cerca de 43 MB | cerca de 475 MB | já vem no Windows 11 |
+| Download para Windows | **7,4 MB** | 98 MB | 8,8 MB, precisa do .NET Desktop Runtime | cerca de 43 MB | cerca de 475 MB | já vem no Windows 11 |
 
 Duas opções sem app que você talvez já tenha: celulares com Android 14 ou mais novo podem funcionar sozinhos como webcam USB se o fabricante ativou esse modo (os Pixel ativam), e o [scrcpy](https://github.com/Genymobile/scrcpy), no qual o Plugcam se baseia, mostra a câmera numa janela (no Windows, é preciso o OBS para transformar essa janela em webcam). O que ainda falta ao Plugcam em relação aos apps pagos: Wi-Fi, 4K e som.
 
+### Outros projetos de código aberto
+
+Destes, só o Plugcam dá ao Windows uma webcam sem nada instalado no celular e sem o OBS no meio. Os outros têm coisas que o Plugcam não tem: Wi-Fi, 4K, suporte a versões mais antigas do Android ou (no caso do BestCam) uma câmera que os apps da Microsoft Store enxergam. Conferido no README de cada projeto em setembro de 2026.
+
+| | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (alfa) | [scrcpy](https://github.com/Genymobile/scrcpy) |
+|---|---|---|---|---|---|
+| App no celular | nenhum | sim | sim | sim | nenhum |
+| Webcam no Windows | sim, DirectShow | sim, DirectShow | sim | sim, Media Foundation (Windows 11 22H2+) | pelo OBS ou outra ferramenta de captura de janela; webcam no Linux |
+| Conexão | USB | USB, Wi-Fi | USB, Wi-Fi | USB | USB, Wi-Fi |
+| Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 12+ para a câmera |
+| Licença | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
+
 ### Leve para o seu PC
 
-O Plugcam é um app nativo em Rust com uma pequena câmera virtual em C++. A janela é desenhada pelo WebView2 que já vem com o Windows (via [Tauri](https://tauri.app)), então não há um Chromium embutido como nos apps Electron. O vídeo em si nunca passa pela página web: a decodificação (com o decodificador H.264 do próprio Windows, no chip gráfico), a rotação, o redimensionamento, os ajustes de cor e a entrega dos quadros à câmera acontecem em Rust, e a janela só recebe uma pequena prévia enquanto está aberta. Fechado na bandeja, o Plugcam desliga o WebView por completo, então uma câmera rodando em segundo plano usa menos de 1% da CPU.
+O Plugcam é um app nativo em Rust com uma pequena câmera virtual em C++. A janela é desenhada pelo WebView2 que já vem com o Windows (via [Tauri](https://tauri.app)), então não há um Chromium embutido como nos apps Electron. O vídeo em si nunca passa pela página web: a decodificação (com o decodificador H.264 do próprio Windows, no chip gráfico), a rotação, o redimensionamento, os ajustes de cor e a entrega dos quadros à câmera acontecem em Rust, e a janela só recebe uma pequena prévia enquanto está aberta. O WebView desenha sem o chip gráfico, o que economiza cerca de 80 MB numa janela tão simples. Fechado na bandeja, o Plugcam desliga o WebView por completo, então uma câmera rodando em segundo plano usa menos de 1% da CPU.
 
 Medido num notebook com Ryzen 7 8845HS e Windows 11, contando o Plugcam e todos os seus processos do WebView2, com a média de um minuto feita pelo [`scripts/measure.ps1`](../../scripts/measure.ps1):
 
-| | Memória (privada) | CPU |
+| | Memória | CPU |
 |---|---|---|
-| Na bandeja | **8 MB** | 0% |
-| Janela aberta, câmera desligada | 211 MB | 0% |
-| Transmitindo 1080p30, na bandeja | 126 MB | **0,7%** |
-| Transmitindo 1080p30, janela aberta com prévia | 375 MB | 3,9% |
+| Na bandeja | **7 MB** | 0% |
+| Janela aberta, câmera desligada | 83 MB | 0% |
+| Transmitindo 1080p30, na bandeja | 99 MB | **0,6%** |
+| Transmitindo 1080p30, janela aberta com prévia | 204 MB | 4,4% |
 
-A CPU é a fatia dos 16 threads do processador de 8 núcleos. A transmissão foi medida com um OnePlus 11R em 1080p a 30 fps. A imagem é decodificada na Radeon 780M integrada ao processador; a memória de vídeo dela é a RAM comum, então os buffers de quadros do decodificador entram na coluna de memória.
+A memória é o que mostra a coluna “Memória” do “Gerenciador de Tarefas” (o conjunto de trabalho privado), então dá para comparar ali com qualquer outro app. A CPU é a fatia dos 16 threads do processador de 8 núcleos, também como no Gerenciador de Tarefas. A transmissão foi medida com um OnePlus 11R em 1080p a 30 fps. A imagem é decodificada na Radeon 780M integrada ao processador; a memória de vídeo dela é a RAM comum, então os buffers de quadros do decodificador entram na coluna de memória.
 
-O adb, pelo qual o Plugcam conversa com o celular, soma cerca de 9 MB; ele é compartilhado com qualquer outra ferramenta Android que você usar.
+O adb, pelo qual o Plugcam conversa com o celular, soma cerca de 2 MB; ele é compartilhado com qualquer outra ferramenta Android que você usar.
 
 ## Como começar
 
@@ -80,28 +93,20 @@ O instalador ainda não é assinado, então o SmartScreen pode dizer “O Window
 
 <table>
   <tr>
-    <td><img src="../screenshots/main-dark-ru.png" alt=""></td>
-    <td><img src="../screenshots/settings-de.png" alt=""></td>
+    <td><img src="../screenshots/main-dark-pt-BR.png" alt=""></td>
+    <td><img src="../screenshots/settings-pt-BR.png" alt=""></td>
   </tr>
   <tr>
-    <td align="center">Tema escuro igual ao Windows · Русский</td>
-    <td align="center">Configurações · Deutsch</td>
+    <td align="center">Tema escuro igual ao Windows</td>
+    <td align="center">Configurações</td>
   </tr>
   <tr>
-    <td><img src="../screenshots/wizard-ja.png" alt=""></td>
-    <td><img src="../screenshots/main-light-es.png" alt=""></td>
+    <td><img src="../screenshots/wizard-pt-BR.png" alt=""></td>
+    <td><img src="../screenshots/settings-dark-pt-BR.png" alt=""></td>
   </tr>
   <tr>
-    <td align="center">Guia inicial · 日本語</td>
-    <td align="center">Pronto para transmitir · Español</td>
-  </tr>
-  <tr>
-    <td><img src="../screenshots/settings-dark-zh-CN.png" alt=""></td>
-    <td><img src="../screenshots/wizard-dark-fr.png" alt=""></td>
-  </tr>
-  <tr>
-    <td align="center">Configurações, tema escuro · 简体中文</td>
-    <td align="center">Guia inicial · Français</td>
+    <td align="center">Guia inicial</td>
+    <td align="center">Configurações, tema escuro</td>
   </tr>
 </table>
 
@@ -111,13 +116,39 @@ O instalador ainda não é assinado, então o SmartScreen pode dizer “O Window
 - Um celular com Android 12 ou mais novo (necessário para capturar a câmera) e um cabo USB que transfira dados.
 - O driver USB costuma vir pelo Windows Update. Se o celular não for encontrado, instale o [driver USB do Google](https://developer.android.com/studio/run/win-usb) ou o do fabricante.
 
-## Bom saber
+## Perguntas frequentes
 
-- **Apps da Microsoft Store**, como o app Câmera do Windows, não enxergam a Plugcam Camera: ela é uma câmera DirectShow, usada por programas clássicos e navegadores. Uma câmera Media Foundation para apps da Store está planejada.
-- **Wi-Fi** ainda não existe; é o próximo passo.
-- **Algumas lentes não dão imagem.** Os celulares listam lentes que não transmitem para apps de terceiros. O Plugcam percebe, oculta a lente e troca para a câmera principal.
-- **Sem som.** Use o microfone do PC ou um headset.
-- O Plugcam foi feito e testado com um OnePlus 11R (Android 15) e o Chrome. Outros celulares e apps devem funcionar do mesmo jeito; se não funcionarem, [abra uma issue](https://github.com/Qwinty/plugcam/issues) com o modelo do celular e o app.
+### Dá para usar o celular Android como webcam no Windows sem instalar app no celular?
+
+Sim, é isso que o Plugcam faz. Ele inicia a parte de câmera do scrcpy no celular pela depuração USB enquanto você transmite e a remove quando você para. Nenhum APK é instalado, e o celular não precisa de root, só de Android 12 ou mais novo. Celulares com Android 14 ou mais novo também podem ter um modo de webcam USB próprio, se o fabricante o ativou (os Pixel ativam).
+
+### Existe alternativa grátis e de código aberto ao DroidCam, Iriun ou iVCam?
+
+O Plugcam é uma. Ele é de código aberto, sob a Apache-2.0, e dá 1080p a 30 fps, ou 60 fps em celulares compatíveis, sem marca d’água, anúncios, limite de tempo nem conta. O que esses apps têm e o Plugcam ainda não: Wi-Fi, 4K e som. Veja a [Comparação](#comparação).
+
+### Quais apps conseguem usar a Plugcam Camera?
+
+Programas e navegadores que usam câmeras DirectShow: Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge e Firefox, então chamadas pelo navegador, como o Google Meet, também funcionam. Apps da Microsoft Store, como o app Câmera do Windows, não a enxergam; uma câmera Media Foundation para eles está planejada. O Microsoft Teams ainda não foi testado.
+
+### Preciso do OBS?
+
+Não. O Plugcam registra a própria câmera, então os programas de vídeo a enxergam diretamente. Com o scrcpy puro no Windows, você teria que capturar a janela dele no OBS e ligar a câmera virtual do OBS.
+
+### O Plugcam funciona pelo Wi-Fi?
+
+Ainda não, só com cabo USB. O Wi-Fi é o próximo passo.
+
+### O Plugcam transmite o som?
+
+Não, o Plugcam envia só a imagem. Use o microfone do PC ou um headset.
+
+### O Plugcam funciona com iPhone, no Mac ou no Linux?
+
+Não, o Plugcam precisa de um celular Android e do Windows. No Linux, o próprio scrcpy consegue transformar o celular em webcam: carregue o módulo `v4l2loopback` e execute `scrcpy --video-source=camera --v4l2-sink=/dev/videoN --no-video-playback`. Num Mac com iPhone, a Câmera de Continuidade já vem no sistema.
+
+### Quais celulares Android funcionam com o Plugcam?
+
+O Plugcam precisa de Android 12 ou mais novo, porque o scrcpy só consegue capturar a câmera a partir do Android 12. Ele foi feito e testado com um OnePlus 11R (Android 15) e o Chrome; outros celulares devem funcionar do mesmo jeito. Alguns celulares listam lentes que não transmitem para apps de terceiros; o Plugcam percebe, oculta a lente e troca para a câmera principal. Se o seu celular ou app não funcionar, [abra uma issue](https://github.com/Qwinty/plugcam/issues) com o modelo do celular e o app.
 
 Como funciona, como compilar e licenças: veja o [README em inglês](../../README.md).
 

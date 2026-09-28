@@ -6,7 +6,8 @@
 
 <p align="center">
   <b>Android スマートフォンを Windows の Web カメラに。</b><br>
-  ケーブル 1 本、ボタン 1 つ。スマートフォンにアプリは不要、透かしなし、無料のオープンソースです。
+  ケーブル 1 本、ボタン 1 つ。スマートフォンにアプリは不要、OBS も透かしもなし。<br>
+  DroidCam、Iriun、iVCam の代わりに使える、無料のオープンソース アプリです。
 </p>
 
 <p align="center">
@@ -21,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="../screenshots/main-light-en.png" width="860" alt="スマートフォンのカメラ映像を表示する Plugcam。右側に操作パネル">
+  <img src="../screenshots/main-light-ja.png" width="860" alt="スマートフォンのカメラ映像を表示する Plugcam。右側に操作パネル">
 </p>
 
 ## Plugcam の特長
@@ -31,7 +32,7 @@
 - **きれいな映像。** 最大 1080p・30 fps、対応機種なら 60 fps。H.264 のエンコードはスマートフォンのハードウェアが、デコードは PC のグラフィックスチップが行うので、PC の負荷はわずかです。
 - **必要な操作はそろっています。** 背面・前面カメラと各レンズの切り替え、1×/2×/5× のズーム、ライト、縦置き用の回転、左右反転、明るさ・コントラスト・彩度・暖かさの調整。
 - **ずっと無料。** 透かし、時間制限、アカウント、テレメトリはありません。Apache-2.0 ライセンス。
-- **軽量。** ダウンロードは 7.4 MB。タスクトレイで待機中のメモリ使用量は 8 MB、そのまま配信しても CPU 使用率は 1% 未満です。アップデートはワンクリックで自動的にインストールされます。
+- **軽量。** ダウンロードは 7.4 MB。タスクトレイで待機中のメモリ使用量は 7 MB、そのまま配信しても CPU 使用率は 1% 未満です。アップデートはワンクリックで自動的にインストールされます。
 - **多言語対応。** 日本語を含む 13 言語。
 
 ## 他のアプリとの比較
@@ -45,26 +46,38 @@
 | 広告 | **なし** | あり | あり | あり | なし | なし |
 | 接続 | USB | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | Wi-Fi + Bluetooth |
 | オープンソース | **はい、Apache-2.0** | PC 版クライアントのみ | いいえ | いいえ | いいえ | いいえ |
-| Windows 版のダウンロード | **7.4 MB** | 98 MB | 2.6 MB | 約 43 MB | 約 475 MB | Windows 11 に標準搭載 |
+| Windows 版のダウンロード | **7.4 MB** | 98 MB | 8.8 MB、.NET Desktop Runtime が必要 | 約 43 MB | 約 475 MB | Windows 11 に標準搭載 |
 
 アプリなしで使える方法が、すでに手元にあるかもしれません。Android 14 以降のスマートフォンは、メーカーがそのモードを有効にしていれば単体で USB Web カメラとして使えます（Pixel は対応）。また、Plugcam のベースである [scrcpy](https://github.com/Genymobile/scrcpy) はカメラ映像をウィンドウに表示できます（Windows でそのウィンドウを Web カメラにするには OBS が必要です）。有料アプリと比べて Plugcam にまだ足りないのは、Wi-Fi、4K、音声です。
 
+### 他のオープンソース プロジェクト
+
+この中で、スマートフォンに何もインストールせず、間に OBS も挟まずに Windows に Web カメラを追加できるのは Plugcam だけです。ほかのプロジェクトには、Wi-Fi、4K、古い Android への対応、（BestCam では）Microsoft Store のアプリからも見えるカメラなど、Plugcam にない機能があります。2026 年 9 月に各プロジェクトの README で確認しました。
+
+| | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam)（アルファ版） | [scrcpy](https://github.com/Genymobile/scrcpy) |
+|---|---|---|---|---|---|
+| スマートフォンのアプリ | 不要 | 必要 | 必要 | 必要 | 不要 |
+| Windows の Web カメラ | 対応、DirectShow | 対応、DirectShow | 対応 | 対応、Media Foundation（Windows 11 22H2 以降） | OBS などのウィンドウ キャプチャ ツール経由。Linux では Web カメラになる |
+| 接続 | USB | USB、Wi-Fi | USB、Wi-Fi | USB | USB、Wi-Fi |
+| Android | 12 以降 | 7.0 以降 | 8.0 以降 | 8.0 以降 | カメラは 12 以降 |
+| ライセンス | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
+
 ### PC に軽い
 
-Plugcam は、小さな C++ 製の仮想カメラを備えたネイティブの Rust アプリです。ウィンドウは Windows に付属する WebView2 で描画するため（[Tauri](https://tauri.app) 経由）、Electron アプリのように Chromium を同梱していません。映像そのものは Web ページを通りません。デコード（Windows 標準の H.264 デコーダーで、グラフィックスチップ上で実行）、回転、拡大縮小、色の調整、カメラへのフレームの受け渡しはすべて Rust で行い、ウィンドウには開いている間だけ小さなプレビューを送ります。タスクトレイに閉じると Plugcam は WebView を完全に終了するので、バックグラウンドで動くカメラの CPU 使用率は 1% 未満です。
+Plugcam は、小さな C++ 製の仮想カメラを備えたネイティブの Rust アプリです。ウィンドウは Windows に付属する WebView2 で描画するため（[Tauri](https://tauri.app) 経由）、Electron アプリのように Chromium を同梱していません。映像そのものは Web ページを通りません。デコード（Windows 標準の H.264 デコーダーで、グラフィックスチップ上で実行）、回転、拡大縮小、色の調整、カメラへのフレームの受け渡しはすべて Rust で行い、ウィンドウには開いている間だけ小さなプレビューを送ります。WebView はグラフィックスチップを使わずに描画するので、これほど単純なウィンドウでは約 80 MB の節約になります。タスクトレイに閉じると Plugcam は WebView を完全に終了するので、バックグラウンドで動くカメラの CPU 使用率は 1% 未満です。
 
 Ryzen 7 8845HS 搭載の Windows 11 ノート PC で、Plugcam とそのすべての WebView2 プロセスを合計し、[`scripts/measure.ps1`](../../scripts/measure.ps1) で 1 分間の平均を測定しました。
 
-| | メモリ（プライベート） | CPU |
+| | メモリ | CPU |
 |---|---|---|
-| タスクトレイ | **8 MB** | 0% |
-| ウィンドウ表示中、カメラはオフ | 211 MB | 0% |
-| 1080p30 で配信中、タスクトレイ | 126 MB | **0.7%** |
-| 1080p30 で配信中、ウィンドウ表示・プレビューあり | 375 MB | 3.9% |
+| タスクトレイ | **7 MB** | 0% |
+| ウィンドウ表示中、カメラはオフ | 83 MB | 0% |
+| 1080p30 で配信中、タスクトレイ | 99 MB | **0.6%** |
+| 1080p30 で配信中、ウィンドウ表示・プレビューあり | 204 MB | 4.4% |
 
-CPU は 8 コア CPU の全 16 スレッドに対する割合です。配信は OnePlus 11R で 1080p・30 fps で測定しました。映像のデコードは CPU 内蔵の Radeon 780M が行います。そのビデオメモリは通常の RAM なので、デコーダーのフレームバッファーもメモリの列に含まれます。
+メモリは「タスク マネージャー」の「メモリ」列に表示される値（プライベート ワーキング セット）なので、そこで他のアプリと比べられます。CPU は 8 コア CPU の全 16 スレッドに対する割合で、これもタスク マネージャーと同じです。配信は OnePlus 11R で 1080p・30 fps で測定しました。映像のデコードは CPU 内蔵の Radeon 780M が行います。そのビデオメモリは通常の RAM なので、デコーダーのフレームバッファーもメモリの列に含まれます。
 
-Plugcam がスマートフォンとの通信に使う adb がさらに約 9 MB 使いますが、これは他に実行している Android ツールと共有されます。
+Plugcam がスマートフォンとの通信に使う adb がさらに約 2 MB 使いますが、これは他に実行している Android ツールと共有されます。
 
 ## 使い方
 
@@ -80,28 +93,20 @@ Plugcam がスマートフォンとの通信に使う adb がさらに約 9 MB �
 
 <table>
   <tr>
-    <td><img src="../screenshots/main-dark-ru.png" alt=""></td>
-    <td><img src="../screenshots/settings-de.png" alt=""></td>
+    <td><img src="../screenshots/main-dark-ja.png" alt=""></td>
+    <td><img src="../screenshots/settings-ja.png" alt=""></td>
   </tr>
   <tr>
-    <td align="center">Windows に合わせたダークテーマ · Русский</td>
-    <td align="center">設定 · Deutsch</td>
+    <td align="center">Windows に合わせたダークテーマ</td>
+    <td align="center">設定</td>
   </tr>
   <tr>
     <td><img src="../screenshots/wizard-ja.png" alt=""></td>
-    <td><img src="../screenshots/main-light-es.png" alt=""></td>
+    <td><img src="../screenshots/settings-dark-ja.png" alt=""></td>
   </tr>
   <tr>
-    <td align="center">初期設定ガイド · 日本語</td>
-    <td align="center">配信の準備完了 · Español</td>
-  </tr>
-  <tr>
-    <td><img src="../screenshots/settings-dark-zh-CN.png" alt=""></td>
-    <td><img src="../screenshots/wizard-dark-fr.png" alt=""></td>
-  </tr>
-  <tr>
-    <td align="center">設定（ダークテーマ） · 简体中文</td>
-    <td align="center">初期設定ガイド · Français</td>
+    <td align="center">初期設定ガイド</td>
+    <td align="center">設定（ダークテーマ）</td>
   </tr>
 </table>
 
@@ -111,13 +116,39 @@ Plugcam がスマートフォンとの通信に使う adb がさらに約 9 MB �
 - Android 12 以降のスマートフォン（カメラの取り込みに必要）と、データ通信ができる USB ケーブル。
 - スマートフォンの USB ドライバは通常 Windows Update で入ります。スマートフォンが見つからない場合は、[Google USB ドライバ](https://developer.android.com/studio/run/win-usb) かメーカーのドライバをインストールしてください。
 
-## 知っておきたいこと
+## よくある質問
 
-- **Microsoft Store のアプリ**（Windows のカメラ アプリなど）からは Plugcam Camera が見えません。これは従来のデスクトップ アプリやブラウザが使う DirectShow カメラだからです。Store アプリ向けの Media Foundation カメラを予定しています。
-- **Wi-Fi 接続** はまだありません。次に取り組む予定です。
-- **映像が出ないレンズがあります。** スマートフォンは、他社アプリには映像を出さないレンズも一覧に含めます。Plugcam はそれを検出してそのレンズを隠し、メインカメラに切り替えます。
-- **音声はありません。** PC のマイクやヘッドセットをお使いください。
-- Plugcam は OnePlus 11R（Android 15）と Chrome で開発・テストしました。他のスマートフォンやアプリでも同じように動くはずです。動かない場合は、機種名とアプリ名を添えて [issue を作成](https://github.com/Qwinty/plugcam/issues)してください。
+### スマホにアプリを入れずに Android を Windows の Web カメラにできますか？
+
+はい、それが Plugcam の役割です。配信中だけ USB デバッグでスマートフォン上に scrcpy のカメラ部分を起動し、配信を止めると削除します。APK はインストールせず、root 化も不要で、必要なのは Android 12 以降だけです。Android 14 以降のスマートフォンには、メーカーが有効にしていれば USB Web カメラ モードが標準で備わっていることもあります（Pixel は対応）。
+
+### DroidCam、Iriun、iVCam の代わりになる無料のオープンソース アプリはありますか？
+
+Plugcam がその 1 つです。Apache-2.0 のオープンソースで、1080p・30 fps（対応機種なら 60 fps）の映像を、透かし、広告、時間制限、アカウントなしで使えます。これらのアプリにあって Plugcam にまだないのは、Wi-Fi、4K、音声です。詳しくは[他のアプリとの比較](#他のアプリとの比較)をご覧ください。
+
+### Plugcam Camera はどのアプリで使えますか？
+
+DirectShow カメラを使うデスクトップ アプリとブラウザです。Zoom、Discord、Telegram Desktop、OBS、Chrome、Edge、Firefox で使えます。ブラウザで使えるので、Google Meet などのブラウザ通話でも使えます。Microsoft Store のアプリ（Windows のカメラ アプリなど）からは見えません。これらのアプリ向けの Media Foundation カメラを予定しています。Microsoft Teams での動作はまだ確認していません。
+
+### OBS は必要ですか？
+
+いいえ。Plugcam は独自のカメラを登録するので、デスクトップのビデオ アプリから直接見えます。Windows で scrcpy だけを使う場合は、そのウィンドウを OBS でキャプチャし、OBS の仮想カメラを起動する必要があります。
+
+### Plugcam は Wi-Fi でも使えますか？
+
+まだ使えません。今は USB ケーブル接続のみです。Wi-Fi は次に取り組む予定です。
+
+### Plugcam で音声も送れますか？
+
+いいえ、Plugcam が送るのは映像だけです。PC のマイクやヘッドセットをお使いください。
+
+### Plugcam は iPhone や Mac、Linux でも使えますか？
+
+いいえ、Plugcam には Android スマートフォンと Windows が必要です。Linux では scrcpy 自体でスマートフォンを Web カメラにできます。`v4l2loopback` モジュールを読み込んで `scrcpy --video-source=camera --v4l2-sink=/dev/videoN --no-video-playback` を実行してください。Mac と iPhone の組み合わせなら、連係カメラが標準で使えます。
+
+### Plugcam に対応している Android スマホは？
+
+Plugcam には Android 12 以降が必要です。scrcpy がカメラを取り込めるのは Android 12 からだからです。OnePlus 11R（Android 15）と Chrome で開発・テストしましたが、他のスマートフォンでも同じように動くはずです。スマートフォンによっては、他社アプリには映像を出さないレンズも一覧に含めます。Plugcam はそれを検出してそのレンズを隠し、メインカメラに切り替えます。お使いのスマートフォンやアプリで動かない場合は、機種名とアプリ名を添えて [issue を作成](https://github.com/Qwinty/plugcam/issues)してください。
 
 仕組み、ソースからのビルド、ライセンスについては[英語の README](../../README.md) をご覧ください。
 

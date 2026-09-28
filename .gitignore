@@ -16,3 +16,4 @@ src-tauri/resources/*.exe
 src-tauri/resources/*.dll
 src-tauri/resources/x86/
 src-tauri/resources/licenses/platform-tools-NOTICE.txt
+docs/research/

@@ -6,7 +6,8 @@
 
 <p align="center">
   <b>Your Android phone as a Windows webcam.</b><br>
-  One cable, one button. No app on the phone, no watermarks, free and open source.
+  One cable, one button. No app on the phone, no OBS, no watermarks.<br>
+  A free, open-source alternative to DroidCam, Iriun and iVCam.
 </p>
 
 <p align="center">
@@ -44,7 +45,7 @@
   presets, flashlight, rotation for a phone standing upright, mirror, and brightness, contrast,
   saturation and warmth.
 - **Free for good.** No watermarks, no time limits, no account, no telemetry. Apache-2.0.
-- **Light.** A 7.4 MB download. Waiting in the tray it takes 8 MB of memory; streaming from
+- **Light.** A 7.4 MB download. Waiting in the tray it takes 7 MB of memory; streaming from
   there, under 1% of the CPU. Updates install themselves with one click.
 - **Speaks your language.** English, Deutsch, Español, Français, Italiano, Polski, Português,
   Türkçe, Українська, Русский, 日本語, 한국어, 简体中文.
@@ -61,7 +62,7 @@ links to the vendor's own page.
 | Ads | **none** | yes | yes | yes | none | none |
 | Connection | USB | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | Wi-Fi + Bluetooth |
 | Open source | **yes, Apache-2.0** | PC client only | no | no | no | no |
-| Windows download | **7.4 MB** | 98 MB | 2.6 MB | about 43 MB | about 475 MB | built into Windows 11 |
+| Windows download | **7.4 MB** | 98 MB | 8.8 MB, needs .NET Desktop Runtime | about 43 MB | about 475 MB | built into Windows 11 |
 
 Two app-free options you may already have: phones with Android 14 or newer can act as a USB
 webcam on their own if the maker turned that mode on (Pixels do), and
@@ -69,31 +70,49 @@ webcam on their own if the maker turned that mode on (Pixels do), and
 window (on Windows you need OBS to turn that window into a webcam). What Plugcam still lacks next
 to the paid apps: Wi-Fi, 4K and sound.
 
+### Other open-source projects
+
+Of these, only Plugcam gives Windows a webcam with nothing installed on the phone and no OBS in
+between. The others have things Plugcam doesn't: Wi-Fi, 4K, older Android versions, or (BestCam)
+a camera that Microsoft Store apps can see. Checked against each project's README in September
+2026.
+
+| | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (alpha) | [scrcpy](https://github.com/Genymobile/scrcpy) |
+|---|---|---|---|---|---|
+| App on the phone | none | yes | yes | yes | none |
+| Webcam on Windows | yes, DirectShow | yes, DirectShow | yes | yes, Media Foundation (Windows 11 22H2+) | through OBS or another window-capture tool; a webcam on Linux |
+| Connection | USB | USB, Wi-Fi | USB, Wi-Fi | USB | USB, Wi-Fi |
+| Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 12+ for the camera |
+| License | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
+
 ### Light on your PC
 
 Plugcam is a native Rust app with a small C++ virtual camera. The window is drawn by the WebView2
 that comes with Windows (through [Tauri](https://tauri.app)), so there is no bundled Chromium as
 in Electron apps. The video itself never goes through the web page: decoding (Windows' own H.264
 decoder, on the graphics chip), rotating, scaling, color adjustments and handing frames to the
-camera all happen in Rust, and the window only gets a small preview while it is open. Closed to
-the tray, Plugcam shuts the WebView down completely, so a camera streaming in the background
+camera all happen in Rust, and the window only gets a small preview while it is open. The
+WebView draws without the graphics chip, which saves about 80 MB for a window this simple. Closed
+to the tray, Plugcam shuts the WebView down completely, so a camera streaming in the background
 takes under 1% of the CPU.
 
 Measured on a Ryzen 7 8845HS laptop with Windows 11, counting Plugcam and all its WebView2
 processes, averaged over a minute with [`scripts/measure.ps1`](scripts/measure.ps1):
 
-| | Memory (private) | CPU |
+| | Memory | CPU |
 |---|---|---|
-| In the tray | **8 MB** | 0% |
-| Window open, camera off | 211 MB | 0% |
-| Streaming 1080p30, in the tray | 126 MB | **0.7%** |
-| Streaming 1080p30, window open with preview | 375 MB | 3.9% |
+| In the tray | **7 MB** | 0% |
+| Window open, camera off | 83 MB | 0% |
+| Streaming 1080p30, in the tray | 99 MB | **0.6%** |
+| Streaming 1080p30, window open with preview | 204 MB | 4.4% |
 
-CPU is the share of all 16 threads of the 8-core processor. Streaming was measured with a
+Memory is what the *Memory* column of Task Manager shows (the private working set), so you can
+compare with any other app there. CPU is the share of all 16 threads of the 8-core processor, as
+in Task Manager too. Streaming was measured with a
 OnePlus 11R at 1080p, 30 fps. The picture is decoded on the Radeon 780M built into the processor;
 its video memory is ordinary RAM, so the decoder's frame buffers count in the memory column.
 
-adb, which Plugcam talks to the phone through, adds about 9 MB; it is shared with any other
+adb, which Plugcam talks to the phone through, adds about 2 MB; it is shared with any other
 Android tool you run.
 
 ## Get started
@@ -121,28 +140,20 @@ way, and you can turn the daily check off in Settings.
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/main-dark-ru.png" alt="Main window, dark theme, in Russian"></td>
-    <td><img src="docs/screenshots/settings-de.png" alt="Settings in German"></td>
+    <td><img src="docs/screenshots/main-dark-en.png" alt="Main window, dark theme, with the color controls open"></td>
+    <td><img src="docs/screenshots/settings-en.png" alt="Settings"></td>
   </tr>
   <tr>
-    <td align="center">Dark theme follows Windows · Русский</td>
-    <td align="center">Settings · Deutsch</td>
+    <td align="center">Dark theme follows Windows</td>
+    <td align="center">Settings</td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/wizard-ja.png" alt="First-run guide in Japanese"></td>
-    <td><img src="docs/screenshots/main-light-es.png" alt="Main window in Spanish"></td>
+    <td><img src="docs/screenshots/wizard-en.png" alt="First-run guide"></td>
+    <td><img src="docs/screenshots/settings-dark-en.png" alt="Settings, dark theme"></td>
   </tr>
   <tr>
-    <td align="center">First-run guide · 日本語</td>
-    <td align="center">Ready to stream · Español</td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/settings-dark-zh-CN.png" alt="Settings, dark theme, in Chinese"></td>
-    <td><img src="docs/screenshots/wizard-dark-fr.png" alt="First-run guide, dark theme, in French"></td>
-  </tr>
-  <tr>
-    <td align="center">Settings, dark theme · 简体中文</td>
-    <td align="center">First-run guide · Français</td>
+    <td align="center">First-run guide</td>
+    <td align="center">Settings, dark theme</td>
   </tr>
 </table>
 
@@ -155,18 +166,55 @@ way, and you can turn the daily check off in Settings.
   the [Google USB driver](https://developer.android.com/studio/run/win-usb) or your phone maker's
   driver.
 
-## Good to know
+## FAQ
 
-- **Apps from the Microsoft Store**, like the Windows Camera app, don't see Plugcam Camera: it is
-  a DirectShow camera, which classic desktop apps and browsers use. A Media Foundation camera for
-  Store apps is planned.
-- **Wi-Fi** is not there yet; it is next on the list.
-- **Some lenses give no picture.** Phones list lenses they won't stream from a third-party app.
-  Plugcam notices, hides that lens and switches to the main camera.
-- **No sound.** Use your PC's microphone or headset.
-- Plugcam was built and tested with a OnePlus 11R (Android 15) and Chrome. Other phones and apps
-  should work the same way; if yours don't, please
-  [open an issue](https://github.com/Qwinty/plugcam/issues) with the phone model and the app.
+### Can I use my Android phone as a webcam on Windows without installing an app on the phone?
+
+Yes, that is what Plugcam does. It starts the camera part of scrcpy on the phone over USB
+debugging while you stream, and removes it when you stop. No APK is installed, and the phone
+doesn't need root, only Android 12 or newer. Phones with Android 14 or newer may also have a
+built-in USB webcam mode, if the maker turned it on (Pixels do).
+
+### Is there a free, open-source alternative to DroidCam, Iriun or iVCam?
+
+Plugcam is one. It is open source under Apache-2.0 and gives 1080p at 30 fps, or 60 fps on phones
+that support it, with no watermark, ads, time limit or account. What those apps have and Plugcam doesn't yet: Wi-Fi, 4K and sound. See
+[How it compares](#how-it-compares).
+
+### Which apps can use Plugcam Camera?
+
+Desktop apps and browsers that use DirectShow cameras: Zoom, Discord, Telegram Desktop, OBS,
+Chrome, Edge and Firefox, so browser calls such as Google Meet work too. Apps from the Microsoft
+Store, like the Windows Camera app, don't see it; a Media Foundation camera for them is planned.
+Microsoft Teams hasn't been checked yet.
+
+### Do I need OBS?
+
+No. Plugcam registers its own camera, so desktop video apps see it directly. With plain scrcpy on Windows
+you would capture its window in OBS and start OBS's virtual camera.
+
+### Does Plugcam work over Wi-Fi?
+
+Not yet, only over a USB cable. Wi-Fi is next on the list.
+
+### Does Plugcam send sound?
+
+No, Plugcam sends only the picture. Use your PC's microphone or headset.
+
+### Does Plugcam work with an iPhone, or on macOS or Linux?
+
+No, Plugcam needs an Android phone and Windows. On Linux, scrcpy itself can turn the phone into a
+webcam: load the `v4l2loopback` module and run
+`scrcpy --video-source=camera --v4l2-sink=/dev/videoN --no-video-playback`. On a Mac with an
+iPhone, Continuity Camera is built in.
+
+### Which Android phones work with Plugcam?
+
+Plugcam needs Android 12 or newer, because scrcpy can capture the camera only from Android 12 on.
+It was built and tested with a OnePlus 11R (Android 15) and Chrome; other phones should work the
+same way. Some phones list lenses they won't stream from a third-party app; Plugcam notices, hides that
+lens and switches to the main camera. If your phone or app doesn't work, please
+[open an issue](https://github.com/Qwinty/plugcam/issues) with the phone model and the app.
 
 ## How it works
 
