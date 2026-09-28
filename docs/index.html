@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plugcam: use your Android phone as a webcam on Windows (free, open source)</title>
+<meta name="description" content="Plugcam turns an Android phone into a Windows webcam over USB. No app on the phone, no OBS, no watermarks. Free and open source (Apache-2.0), built on scrcpy. An alternative to DroidCam, Iriun and iVCam.">
+<link rel="canonical" href="https://qwinty.github.io/plugcam/">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icon-256.png">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131417" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Plugcam: your Android phone as a Windows webcam">
+<meta property="og:description" content="One cable, one button. No app on the phone, no OBS, no watermarks. Free and open source.">
+<meta property="og:url" content="https://qwinty.github.io/plugcam/">
+<meta property="og:image" content="https://qwinty.github.io/plugcam/screenshots/main-light-en.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Plugcam",
+  "description": "Turns an Android phone into a Windows webcam over USB, with no app on the phone, no OBS and no watermarks. Built on scrcpy.",
+  "applicationCategory": "MultimediaApplication",
+  "operatingSystem": "Windows 10, Windows 11",
+  "softwareVersion": "0.1.0",
+  "fileSize": "7.4 MB",
+  "downloadUrl": "https://github.com/Qwinty/plugcam/releases/latest",
+  "url": "https://qwinty.github.io/plugcam/",
+  "sameAs": "https://github.com/Qwinty/plugcam",
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Maxim Esipov" },
+  "screenshot": "https://qwinty.github.io/plugcam/screenshots/main-light-en.png"
+}
+</script>
+<style>
+:root {
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --text: #1b1b1f;
+  --muted: #5d5f66;
+  --line: #e3e4e8;
+  --accent: #005fb8;
+  --accent-hover: #1a6fc0;
+  --on-accent: #ffffff;
+  --accent-soft: rgb(0 95 184 / 0.08);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 40px rgb(0 0 0 / 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131417;
+    --surface: #1c1d21;
+    --text: #ececef;
+    --muted: #a0a2aa;
+    --line: #2d2f35;
+    --accent: #60cdff;
+    --accent-hover: #86d9ff;
+    --on-accent: #0b1a26;
+    --accent-soft: rgb(96 205 255 / 0.1);
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 40px rgb(0 0 0 / 0.45);
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { color: var(--accent-hover); }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 720px) { .wrap { padding: 0 32px; } }
+
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 0; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 600; font-size: 18px; }
+.brand img { width: 28px; height: 28px; }
+nav { display: flex; gap: 20px; font-size: 15px; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--text); }
+@media (max-width: 480px) { nav .opt { display: none; } }
+
+.hero { text-align: center; padding: 56px 0 40px; }
+.hero img.logo { width: 88px; height: 88px; margin-bottom: 20px; }
+h1 {
+  font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: clamp(32px, 6vw, 52px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  margin: 0 auto 18px;
+  max-width: 13em;
+  text-wrap: balance;
+}
+.lede { font-size: clamp(17px, 2.2vw, 20px); color: var(--muted); max-width: 40em; margin: 0 auto 32px; text-wrap: pretty; }
+.cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 22px; border-radius: 8px;
+  font-weight: 600; font-size: 16px; text-decoration: none;
+  border: 1px solid var(--line); color: var(--text); background: var(--surface);
+}
+.btn:hover { color: var(--text); border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+.meta { margin-top: 16px; font-size: 14px; color: var(--muted); }
+
+.shot { margin: 16px auto 0; max-width: 960px; }
+.shot img {
+  display: block; width: 100%; height: auto;
+  border-radius: 12px; border: 1px solid var(--line); box-shadow: var(--shadow);
+}
+
+section { padding: 64px 0 0; }
+h2 { font-size: 28px; line-height: 1.2; letter-spacing: -0.01em; margin: 0 0 8px; font-weight: 650; }
+.sub { color: var(--muted); margin: 0 0 28px; max-width: 44em; }
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.fact b { display: block; font-size: 17px; margin-bottom: 4px; }
+.fact span { color: var(--muted); font-size: 15px; }
+
+ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+ol.steps li { counter-increment: s; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+ol.steps li::before {
+  content: counter(s); display: inline-grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px; margin-bottom: 10px;
+}
+ol.steps b { display: block; margin-bottom: 4px; }
+ol.steps span { color: var(--muted); font-size: 15px; }
+
+.table { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); margin-bottom: 16px; }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 15px; }
+td { min-width: 120px; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child th, tr:last-child td { border-bottom: 0; }
+thead th { font-weight: 600; white-space: nowrap; }
+tbody th { font-weight: 500; color: var(--muted); white-space: nowrap; }
+td.us, th.us { background: var(--accent-soft); }
+thead th.us { color: var(--accent); }
+.note { color: var(--muted); font-size: 15px; max-width: 48em; }
+
+.faq { display: grid; gap: 0; border-top: 1px solid var(--line); }
+.faq div { padding: 22px 0; border-bottom: 1px solid var(--line); }
+.faq h3 { font-size: 18px; line-height: 1.35; margin: 0 0 6px; font-weight: 600; }
+.faq p { margin: 0; color: var(--muted); max-width: 48em; }
+code { font-family: "Cascadia Code", Consolas, ui-monospace, monospace; font-size: 0.9em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+
+.final { text-align: center; padding: 72px 0 8px; }
+.final h2 { margin-bottom: 20px; }
+footer { padding: 48px 0 40px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between; }
+footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="./"><img src="assets/icon.svg" alt="" width="28" height="28">Plugcam</a>
+    <nav>
+      <a class="opt" href="#compare">Compare</a>
+      <a class="opt" href="#faq">FAQ</a>
+      <a href="https://github.com/Qwinty/plugcam">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <img class="logo" src="assets/icon.svg" alt="" width="88" height="88">
+      <h1>Your Android phone as a Windows webcam</h1>
+      <p class="lede">One USB cable, one button. No app on the phone, no OBS, no watermarks. Plugcam is a free, open-source alternative to DroidCam, Iriun and iVCam, built on scrcpy.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/Qwinty/plugcam/releases/latest">Download for Windows</a>
+        <a class="btn" href="https://github.com/Qwinty/plugcam">Source on GitHub</a>
+      </div>
+      <p class="meta">Version 0.1.0 · 7.4 MB · Windows 10 and 11 · Android 12 or newer · Apache-2.0</p>
+    </div>
+
+    <div class="shot">
+      <picture>
+        <source srcset="screenshots/main-dark-en.png" media="(prefers-color-scheme: dark)">
+        <img src="screenshots/main-light-en.png" width="2056" height="1432" alt="Plugcam's window showing the phone camera's picture, with camera, zoom and color controls on the right">
+      </picture>
+    </div>
+
+    <section id="why">
+      <h2>Why Plugcam</h2>
+      <p class="sub">"Plugcam Camera" shows up next to your other cameras in Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge and Firefox, so browser calls such as Google Meet work too.</p>
+      <div class="facts">
+        <div class="fact"><b>Nothing on the phone</b><span>Plugcam runs the camera part of scrcpy over USB debugging while you stream and removes it when you stop. No APK, no root.</span></div>
+        <div class="fact"><b>1080p, 30 or 60 fps</b><span>60 fps on phones that support it. The phone encodes H.264 in hardware and your PC's graphics chip decodes it.</span></div>
+        <div class="fact"><b>Light on your PC</b><span>7 MB of memory waiting in the tray, under 1% of the CPU streaming from there.</span></div>
+        <div class="fact"><b>Free for good</b><span>No watermarks, ads, time limits, account or telemetry. The video never leaves your PC.</span></div>
+        <div class="fact"><b>Full camera controls</b><span>Front or back camera and each lens, zoom, flashlight, rotation, mirror, brightness, contrast, saturation and warmth.</span></div>
+        <div class="fact"><b>13 languages</b><span>English, Deutsch, Español, Français, Italiano, Polski, Português, Türkçe, Українська, Русский, 日本語, 한국어, 简体中文.</span></div>
+      </div>
+    </section>
+
+    <section id="start">
+      <h2>Get started</h2>
+      <p class="sub">The first time takes three steps. After that, plug in and press one button.</p>
+      <ol class="steps">
+        <li><b>Install Plugcam</b><span>Run the installer from the <a href="https://github.com/Qwinty/plugcam/releases/latest">latest release</a>, or unpack the portable zip. Windows asks for administrator rights once, to add the camera.</span></li>
+        <li><b>Turn on USB debugging</b><span>On the phone: Settings → About phone, tap Build number seven times, then Developer options → USB debugging. Plugcam's first-run guide shows the way.</span></li>
+        <li><b>Plug in and stream</b><span>Tap Allow on the phone and press Turn camera on. In your video app, pick Plugcam Camera.</span></li>
+      </ol>
+    </section>
+
+    <section id="compare">
+      <h2>How it compares</h2>
+      <p class="sub">The apps people usually try first, as of September 2026. Free tiers change often, so each name links to the vendor's own page.</p>
+      <div class="table">
+        <table>
+          <thead>
+            <tr><th></th><th class="us">Plugcam</th><th><a href="https://droidcam.app/">DroidCam</a></th><th><a href="https://iriun.com/">Iriun</a></th><th><a href="https://www.e2esoft.com/ivcam/">iVCam</a></th><th><a href="https://camo.com/pricing">Camo</a></th><th><a href="https://support.microsoft.com/en-us/windows/apps/phonelink/use-your-mobile-device-s-camera">Phone Link</a></th></tr>
+          </thead>
+          <tbody>
+            <tr><th>App on the phone</th><td class="us">none</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td><td>Link to Windows</td></tr>
+            <tr><th>Free picture</th><td class="us">1080p, 30 or 60 fps</td><td>640×480; HD has a watermark</td><td>up to 4K, with a watermark</td><td>watermark; 640×480 after the trial</td><td>up to 720p</td><td>720p</td></tr>
+            <tr><th>Ads</th><td class="us">none</td><td>yes</td><td>yes</td><td>yes</td><td>none</td><td>none</td></tr>
+            <tr><th>Connection</th><td class="us">USB</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>Wi-Fi + Bluetooth</td></tr>
+            <tr><th>Open source</th><td class="us">yes, Apache-2.0</td><td>PC client only</td><td>no</td><td>no</td><td>no</td><td>no</td></tr>
+            <tr><th>Windows download</th><td class="us">7.4 MB</td><td>98 MB</td><td>8.8 MB, needs .NET Desktop Runtime</td><td>about 43 MB</td><td>about 475 MB</td><td>built into Windows 11</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">What Plugcam still lacks next to the paid apps: Wi-Fi, 4K and sound.</p>
+
+      <h2 style="margin-top:40px">Other open-source projects</h2>
+      <p class="sub">Of these, only Plugcam gives Windows a webcam with nothing installed on the phone and no OBS in between. The others have things Plugcam doesn't: Wi-Fi, 4K, older Android versions, or (BestCam) a camera that Microsoft Store apps can see. Checked against each project's README in September 2026.</p>
+      <div class="table">
+        <table>
+          <thead>
+            <tr><th></th><th class="us">Plugcam</th><th><a href="https://github.com/darusc/VCamdroid">VCamdroid</a></th><th><a href="https://github.com/soubhagyajit/Android-Webcam-Project">Android Webcam Project</a></th><th><a href="https://github.com/OneLimeStudio/BestCam">BestCam</a> (alpha)</th><th><a href="https://github.com/Genymobile/scrcpy">scrcpy</a></th></tr>
+          </thead>
+          <tbody>
+            <tr><th>App on the phone</th><td class="us">none</td><td>yes</td><td>yes</td><td>yes</td><td>none</td></tr>
+            <tr><th>Webcam on Windows</th><td class="us">yes, DirectShow</td><td>yes, DirectShow</td><td>yes</td><td>yes, Media Foundation (Windows 11 22H2+)</td><td>through OBS or another window-capture tool; a webcam on Linux</td></tr>
+            <tr><th>Connection</th><td class="us">USB</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB</td><td>USB, Wi-Fi</td></tr>
+            <tr><th>Android</th><td class="us">12+</td><td>7.0+</td><td>8.0+</td><td>8.0+</td><td>12+ for the camera</td></tr>
+            <tr><th>License</th><td class="us">Apache-2.0</td><td>MIT</td><td>GPL-3.0</td><td>GPL-2.0</td><td>Apache-2.0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="faq">
+      <h2>FAQ</h2>
+      <p class="sub">Short answers to what people ask most.</p>
+      <div class="faq">
+        <div>
+          <h3>Can I use my Android phone as a webcam on Windows without installing an app on the phone?</h3>
+          <p>Yes, that is what Plugcam does. It starts the camera part of scrcpy on the phone over USB debugging while you stream, and removes it when you stop. No APK is installed, and the phone doesn't need root, only Android 12 or newer. Phones with Android 14 or newer may also have a built-in USB webcam mode, if the maker turned it on (Pixels do).</p>
+        </div>
+        <div>
+          <h3>Is there a free, open-source alternative to DroidCam, Iriun or iVCam?</h3>
+          <p>Plugcam is one. It is open source under Apache-2.0 and gives 1080p at 30 fps, or 60 fps on phones that support it, with no watermark, ads, time limit or account. What those apps have and Plugcam doesn't yet: Wi-Fi, 4K and sound. See <a href="#compare">How it compares</a>.</p>
+        </div>
+        <div>
+          <h3>Which apps can use Plugcam Camera?</h3>
+          <p>Desktop apps and browsers that use DirectShow cameras: Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge and Firefox, so browser calls such as Google Meet work too. Apps from the Microsoft Store, like the Windows Camera app, don't see it; a Media Foundation camera for them is planned. Microsoft Teams hasn't been checked yet.</p>
+        </div>
+        <div>
+          <h3>Do I need OBS?</h3>
+          <p>No. Plugcam registers its own camera, so desktop video apps see it directly. With plain scrcpy on Windows you would capture its window in OBS and start OBS's virtual camera.</p>
+        </div>
+        <div>
+          <h3>Does Plugcam work over Wi-Fi?</h3>
+          <p>Not yet, only over a USB cable. Wi-Fi is next on the list.</p>
+        </div>
+        <div>
+          <h3>Does Plugcam send sound?</h3>
+          <p>No, Plugcam sends only the picture. Use your PC's microphone or headset.</p>
+        </div>
+        <div>
+          <h3>Does Plugcam work with an iPhone, or on macOS or Linux?</h3>
+          <p>No, Plugcam needs an Android phone and Windows. On Linux, scrcpy itself can turn the phone into a webcam: load the <code>v4l2loopback</code> module and run <code>scrcpy --video-source=camera --v4l2-sink=/dev/videoN --no-video-playback</code>. On a Mac with an iPhone, Continuity Camera is built in.</p>
+        </div>
+        <div>
+          <h3>Which Android phones work with Plugcam?</h3>
+          <p>Plugcam needs Android 12 or newer, because scrcpy can capture the camera only from Android 12 on. It was built and tested with a OnePlus 11R (Android 15) and Chrome; other phones should work the same way. Some phones list lenses they won't stream from a third-party app; Plugcam notices, hides that lens and switches to the main camera. If your phone or app doesn't work, please <a href="https://github.com/Qwinty/plugcam/issues">open an issue</a> with the phone model and the app.</p>
+        </div>
+        <div>
+          <h3>Is it safe?</h3>
+          <p>Plugcam has no servers and sends nothing anywhere: the video goes from the phone to your PC over the cable and stays there. The only thing it fetches is the list of releases on GitHub, once a day, to check for updates, and you can turn that off. The source is on <a href="https://github.com/Qwinty/plugcam">GitHub</a>.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="final">
+      <h2>Try it with your phone</h2>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/Qwinty/plugcam/releases/latest">Download for Windows</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span>Plugcam is free software under <a href="https://github.com/Qwinty/plugcam/blob/main/LICENSE">Apache-2.0</a>, by Maxim Esipov. Built on <a href="https://github.com/Genymobile/scrcpy">scrcpy</a> and <a href="https://github.com/tshino/softcam">Softcam</a>.</span>
+    <span>Updated 28 September 2026 · <a href="https://github.com/Qwinty/plugcam">GitHub</a></span>
+  </footer>
+</div>
+</body>
+</html>

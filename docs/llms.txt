@@ -1,0 +1,16 @@
+# Plugcam
+
+> Plugcam turns an Android phone into a Windows webcam over USB. Nothing is installed on the phone (it runs scrcpy-server over adb while streaming), no OBS is needed, and there are no watermarks. Free and open source under Apache-2.0.
+
+- Platforms: Windows 10 and 11 (64-bit); Android 12 or newer with USB debugging.
+- Picture: up to 1080p at 30 fps, or 60 fps on phones that support it. H.264 encoded on the phone, decoded on the PC's GPU.
+- Camera: a DirectShow virtual camera named "Plugcam Camera" (Softcam fork), seen by Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge, Firefox and web calls such as Google Meet. Microsoft Store apps (Windows Camera) don't see it yet.
+- Not yet: Wi-Fi, sound, 4K, a Media Foundation camera. iPhone, macOS and Linux are not supported (on Linux use scrcpy's --v4l2-sink).
+- Size: 7.4 MB download, about 7 MB of memory in the tray, under 1% CPU while streaming from the tray.
+
+## Links
+
+- [README](https://github.com/Qwinty/plugcam/blob/main/README.md): features, comparison with DroidCam, Iriun, iVCam, Camo, Phone Link and open-source projects, FAQ, build instructions
+- [Latest release](https://github.com/Qwinty/plugcam/releases/latest): installer (`Plugcam_x.y.z_x64-setup.exe`) and portable zip
+- [Source code](https://github.com/Qwinty/plugcam): Rust, Tauri, Svelte, C++ virtual camera
+- [Issues](https://github.com/Qwinty/plugcam/issues)
