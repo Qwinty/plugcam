@@ -467,6 +467,7 @@
   }
   .presets {
     display: flex;
+    justify-content: flex-end;
     gap: 6px;
   }
   .preset {

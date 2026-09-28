@@ -22,6 +22,7 @@
         "center": true,
         "visible": false,
         "transparent": true,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu",
         "windowEffects": {
           "effects": [
             "mica"
