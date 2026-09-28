@@ -55,3 +55,12 @@ opt-level = 3
 codegen-units = 1
 lto = "thin"
 strip = true
+
+# Local test builds of the whole app: `pnpm tauri build --no-bundle -- --profile release-fast`.
+# Same speed of the app within a few percent, but code generation runs on every core and there
+# is no link-time optimization, which is what makes `release` take minutes.
+[profile.release-fast]
+inherits = "release"
+codegen-units = 16
+lto = false
+incremental = true
