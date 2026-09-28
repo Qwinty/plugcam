@@ -52,7 +52,7 @@ Deux options sans appli que vous avez peut-être déjà : les téléphones sous 
 
 ### Autres projets open source
 
-Parmi eux, seul Plugcam offre une webcam à Windows sans rien installer sur le téléphone ni passer par OBS. Les autres ont des choses que Plugcam n’a pas : le Wi-Fi, la 4K, la prise en charge d’anciennes versions d’Android ou (pour BestCam) une caméra visible par les applis du Microsoft Store. Vérifié d’après le README de chaque projet en septembre 2026.
+Parmi eux, seul Plugcam offre une webcam à Windows sans rien installer sur le téléphone ni passer par OBS. Les autres ont des choses que Plugcam n’a pas : le Wi-Fi, la 4K, la prise en charge d’anciennes versions d’Android ou (pour BestCam) une caméra visible par les applis du Microsoft Store. Vérifié d’après le README de chaque projet en septembre 2026. scrcpy, sur lequel repose Plugcam, s’utilise en ligne de commande, et Plugcam fait de son mode caméra une appli avec aperçu et réglages.
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (alpha) | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -60,6 +60,8 @@ Parmi eux, seul Plugcam offre une webcam à Windows sans rien installer sur le t
 | Webcam sous Windows | oui, DirectShow | oui, DirectShow | oui | oui, Media Foundation (Windows 11 22H2+) | via OBS ou un autre outil de capture de fenêtre ; une webcam sous Linux |
 | Connexion | USB | USB, Wi-Fi | USB, Wi-Fi | USB | USB, Wi-Fi |
 | Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 12+ pour la caméra |
+| Sur le PC | appli avec aperçu, réglages et guide de démarrage | appli | appli | script Python, appli annoncée | ligne de commande, la fenêtre n’affiche que la vidéo |
+| Installation | installateur ou zip portable, se met à jour tout seul | zip, puis install.bat en administrateur | installateur | zip, sans installateur | zip ou winget |
 | Licence | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
 
 ### Léger pour votre PC

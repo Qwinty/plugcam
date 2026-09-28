@@ -52,7 +52,7 @@ Dos opciones sin app que quizá ya tengas: los teléfonos con Android 14 o poste
 
 ### Otros proyectos de código abierto
 
-De todos ellos, solo Plugcam le da a Windows una webcam sin instalar nada en el teléfono y sin OBS de por medio. Los demás tienen cosas que Plugcam no tiene: Wi-Fi, 4K, compatibilidad con versiones más antiguas de Android o (BestCam) una cámara que ven las apps de Microsoft Store. Comprobado con el README de cada proyecto en septiembre de 2026.
+De todos ellos, solo Plugcam le da a Windows una webcam sin instalar nada en el teléfono y sin OBS de por medio. Los demás tienen cosas que Plugcam no tiene: Wi-Fi, 4K, compatibilidad con versiones más antiguas de Android o (BestCam) una cámara que ven las apps de Microsoft Store. Comprobado con el README de cada proyecto en septiembre de 2026. scrcpy, en el que se basa Plugcam, se usa desde la línea de comandos; Plugcam convierte su modo de cámara en una app con vista previa y controles.
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (alfa) | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -60,6 +60,8 @@ De todos ellos, solo Plugcam le da a Windows una webcam sin instalar nada en el 
 | Webcam en Windows | sí, DirectShow | sí, DirectShow | sí | sí, Media Foundation (Windows 11 22H2+) | a través de OBS u otra herramienta de captura de ventanas; webcam en Linux |
 | Conexión | USB | USB, Wi-Fi | USB, Wi-Fi | USB | USB, Wi-Fi |
 | Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 12+ para la cámara |
+| En el PC | app con vista previa, controles y guía de primer uso | app | app | script de Python; app anunciada | línea de comandos; la ventana solo muestra el vídeo |
+| Instalación | instalador o zip portátil; se actualiza solo | zip y luego install.bat como administrador | instalador | zip, sin instalador | zip o winget |
 | Licencia | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
 
 ### Ligero para tu PC

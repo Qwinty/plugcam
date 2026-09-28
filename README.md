@@ -74,8 +74,9 @@ to the paid apps: Wi-Fi, 4K and sound.
 
 Of these, only Plugcam gives Windows a webcam with nothing installed on the phone and no OBS in
 between. The others have things Plugcam doesn't: Wi-Fi, 4K, older Android versions, or (BestCam)
-a camera that Microsoft Store apps can see. Checked against each project's README in September
-2026.
+a camera that Microsoft Store apps can see. scrcpy, which Plugcam builds on, is a command-line
+tool; Plugcam puts its camera mode into an app with a preview and controls. Checked against each
+project's README in September 2026.
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (alpha) | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -83,6 +84,8 @@ a camera that Microsoft Store apps can see. Checked against each project's READM
 | Webcam on Windows | yes, DirectShow | yes, DirectShow | yes | yes, Media Foundation (Windows 11 22H2+) | through OBS or another window-capture tool; a webcam on Linux |
 | Connection | USB | USB, Wi-Fi | USB, Wi-Fi | USB | USB, Wi-Fi |
 | Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 12+ for the camera |
+| On the PC | app with a preview, controls and a first-run guide | app | app | Python script; app announced | command line; the window shows only the video |
+| Install | installer or portable zip; updates itself | zip, then install.bat as administrator | installer | zip, no installer | zip or winget |
 | License | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
 
 ### Light on your PC

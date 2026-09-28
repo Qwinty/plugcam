@@ -232,7 +232,7 @@ footer a { color: var(--muted); }
       <p class="note">What Plugcam still lacks next to the paid apps: Wi-Fi, 4K and sound.</p>
 
       <h2 style="margin-top:40px">Other open-source projects</h2>
-      <p class="sub">Of these, only Plugcam gives Windows a webcam with nothing installed on the phone and no OBS in between. The others have things Plugcam doesn't: Wi-Fi, 4K, older Android versions, or (BestCam) a camera that Microsoft Store apps can see. Checked against each project's README in September 2026.</p>
+      <p class="sub">Of these, only Plugcam gives Windows a webcam with nothing installed on the phone and no OBS in between. The others have things Plugcam doesn't: Wi-Fi, 4K, older Android versions, or (BestCam) a camera that Microsoft Store apps can see. scrcpy, which Plugcam builds on, is a command-line tool; Plugcam puts its camera mode into an app with a preview and controls. Checked against each project's README in September 2026.</p>
       <div class="table">
         <table>
           <thead>
@@ -243,6 +243,8 @@ footer a { color: var(--muted); }
             <tr><th>Webcam on Windows</th><td class="us">yes, DirectShow</td><td>yes, DirectShow</td><td>yes</td><td>yes, Media Foundation (Windows 11 22H2+)</td><td>through OBS or another window-capture tool; a webcam on Linux</td></tr>
             <tr><th>Connection</th><td class="us">USB</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB</td><td>USB, Wi-Fi</td></tr>
             <tr><th>Android</th><td class="us">12+</td><td>7.0+</td><td>8.0+</td><td>8.0+</td><td>12+ for the camera</td></tr>
+            <tr><th>On the PC</th><td class="us">app with a preview, controls and a first-run guide</td><td>app</td><td>app</td><td>Python script; app announced</td><td>command line; the window shows only the video</td></tr>
+            <tr><th>Install</th><td class="us">installer or portable zip; updates itself</td><td>zip, then install.bat as administrator</td><td>installer</td><td>zip, no installer</td><td>zip or winget</td></tr>
             <tr><th>License</th><td class="us">Apache-2.0</td><td>MIT</td><td>GPL-3.0</td><td>GPL-2.0</td><td>Apache-2.0</td></tr>
           </tbody>
         </table>

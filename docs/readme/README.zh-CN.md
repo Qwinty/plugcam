@@ -52,7 +52,7 @@
 
 ### 其他开源项目
 
-在这些项目中，只有 Plugcam 能在手机上什么都不装、中间也不经过 OBS 的情况下为 Windows 提供摄像头。其他项目也有 Plugcam 没有的功能：Wi-Fi、4K、支持更旧的 Android 版本，或者（BestCam）Microsoft Store 应用也能看到的摄像头。信息于 2026 年 9 月依据各项目的 README 核对。
+在这些项目中，只有 Plugcam 能在手机上什么都不装、中间也不经过 OBS 的情况下为 Windows 提供摄像头。其他项目也有 Plugcam 没有的功能：Wi-Fi、4K、支持更旧的 Android 版本，或者（BestCam）Microsoft Store 应用也能看到的摄像头。信息于 2026 年 9 月依据各项目的 README 核对。Plugcam 所基于的 scrcpy 是命令行工具，Plugcam 把它的摄像头模式做成了带预览和控制项的应用。
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam)（alpha） | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -60,6 +60,8 @@
 | Windows 摄像头 | 是，DirectShow | 是，DirectShow | 是 | 是，Media Foundation（Windows 11 22H2+） | 需借助 OBS 或其他窗口捕获工具；在 Linux 上可作为摄像头 |
 | 连接方式 | USB | USB、Wi-Fi | USB、Wi-Fi | USB | USB、Wi-Fi |
 | Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 摄像头需要 12+ |
+| 电脑端 | 带预览、控制项和初始设置向导的应用 | 应用 | 应用 | Python 脚本（应用尚未发布） | 命令行，窗口里只有画面 |
+| 安装 | 安装程序或便携版 zip，自动更新 | zip，再以管理员身份运行 install.bat | 安装程序 | zip，没有安装程序 | zip 或 winget |
 | 许可证 | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
 
 ### 对电脑的负担很小

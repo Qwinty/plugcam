@@ -52,7 +52,7 @@ Zwei Möglichkeiten ohne App, die du vielleicht schon hast: Smartphones mit Andr
 
 ### Weitere Open-Source-Projekte
 
-Von diesen Projekten gibt nur Plugcam Windows eine Webcam, ohne dass auf dem Smartphone etwas installiert wird und ohne OBS dazwischen. Die anderen können dafür Dinge, die Plugcam nicht kann: WLAN, 4K, ältere Android-Versionen oder (BestCam) eine Kamera, die auch Apps aus dem Microsoft Store sehen. Abgeglichen mit dem README des jeweiligen Projekts, Stand September 2026.
+Von diesen Projekten gibt nur Plugcam Windows eine Webcam, ohne dass auf dem Smartphone etwas installiert wird und ohne OBS dazwischen. Die anderen können dafür Dinge, die Plugcam nicht kann: WLAN, 4K, ältere Android-Versionen oder (BestCam) eine Kamera, die auch Apps aus dem Microsoft Store sehen. Abgeglichen mit dem README des jeweiligen Projekts, Stand September 2026. scrcpy, auf dem Plugcam aufbaut, ist ein Kommandozeilenwerkzeug; Plugcam macht aus seinem Kameramodus eine App mit Vorschau und Reglern.
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (Alpha) | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -60,6 +60,8 @@ Von diesen Projekten gibt nur Plugcam Windows eine Webcam, ohne dass auf dem Sma
 | Webcam unter Windows | ja, DirectShow | ja, DirectShow | ja | ja, Media Foundation (Windows 11 22H2+) | über OBS oder ein anderes Programm, das Fenster aufnimmt; unter Linux eine Webcam |
 | Verbindung | USB | USB, WLAN | USB, WLAN | USB | USB, WLAN |
 | Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 12+ für die Kamera |
+| Auf dem PC | App mit Vorschau, Reglern und Einrichtungsassistent | App | App | Python-Skript, App angekündigt | Kommandozeile, das Fenster zeigt nur das Video |
+| Installation | Installer oder portables Zip, aktualisiert sich selbst | Zip, dann install.bat als Administrator | Installer | Zip, kein Installer | Zip oder winget |
 | Lizenz | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
 
 ### Leicht für deinen PC

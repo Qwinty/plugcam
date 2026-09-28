@@ -52,7 +52,7 @@
 
 ### 他のオープンソース プロジェクト
 
-この中で、スマートフォンに何もインストールせず、間に OBS も挟まずに Windows に Web カメラを追加できるのは Plugcam だけです。ほかのプロジェクトには、Wi-Fi、4K、古い Android への対応、（BestCam では）Microsoft Store のアプリからも見えるカメラなど、Plugcam にない機能があります。2026 年 9 月に各プロジェクトの README で確認しました。
+この中で、スマートフォンに何もインストールせず、間に OBS も挟まずに Windows に Web カメラを追加できるのは Plugcam だけです。ほかのプロジェクトには、Wi-Fi、4K、古い Android への対応、（BestCam では）Microsoft Store のアプリからも見えるカメラなど、Plugcam にない機能があります。2026 年 9 月に各プロジェクトの README で確認しました。Plugcam のベースである scrcpy はコマンドラインのツールで、Plugcam はそのカメラ機能をプレビューとコントロール付きのアプリにしています。
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam)（アルファ版） | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -60,6 +60,8 @@
 | Windows の Web カメラ | 対応、DirectShow | 対応、DirectShow | 対応 | 対応、Media Foundation（Windows 11 22H2 以降） | OBS などのウィンドウ キャプチャ ツール経由。Linux では Web カメラになる |
 | 接続 | USB | USB、Wi-Fi | USB、Wi-Fi | USB | USB、Wi-Fi |
 | Android | 12 以降 | 7.0 以降 | 8.0 以降 | 8.0 以降 | カメラは 12 以降 |
+| PC 側 | プレビュー、各種コントロール、初期設定ガイド付きのアプリ | アプリ | アプリ | Python スクリプト（アプリは公開予定） | コマンドライン（ウィンドウには映像のみ） |
+| インストール | インストーラーまたはポータブル版 zip、自動アップデート | zip を展開し、install.bat を管理者として実行 | インストーラー | zip（インストーラーなし） | zip または winget |
 | ライセンス | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
 
 ### PC に軽い

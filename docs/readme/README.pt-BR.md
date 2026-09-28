@@ -52,7 +52,7 @@ Duas opções sem app que você talvez já tenha: celulares com Android 14 ou ma
 
 ### Outros projetos de código aberto
 
-Destes, só o Plugcam dá ao Windows uma webcam sem nada instalado no celular e sem o OBS no meio. Os outros têm coisas que o Plugcam não tem: Wi-Fi, 4K, suporte a versões mais antigas do Android ou (no caso do BestCam) uma câmera que os apps da Microsoft Store enxergam. Conferido no README de cada projeto em setembro de 2026.
+Destes, só o Plugcam dá ao Windows uma webcam sem nada instalado no celular e sem o OBS no meio. Os outros têm coisas que o Plugcam não tem: Wi-Fi, 4K, suporte a versões mais antigas do Android ou (no caso do BestCam) uma câmera que os apps da Microsoft Store enxergam. Conferido no README de cada projeto em setembro de 2026. O scrcpy, base do Plugcam, é uma ferramenta de linha de comando; o Plugcam transforma o modo câmera dele em um app com prévia e controles.
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (alfa) | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -60,6 +60,8 @@ Destes, só o Plugcam dá ao Windows uma webcam sem nada instalado no celular e 
 | Webcam no Windows | sim, DirectShow | sim, DirectShow | sim | sim, Media Foundation (Windows 11 22H2+) | pelo OBS ou outra ferramenta de captura de janela; webcam no Linux |
 | Conexão | USB | USB, Wi-Fi | USB, Wi-Fi | USB | USB, Wi-Fi |
 | Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 12+ para a câmera |
+| No PC | app com prévia, controles e guia inicial | app | app | script em Python; app anunciado | linha de comando; a janela mostra só o vídeo |
+| Instalação | instalador ou zip portátil; atualiza sozinho | zip e depois install.bat como administrador | instalador | zip, sem instalador | zip ou winget |
 | Licença | Apache-2.0 | MIT | GPL-3.0 | GPL-2.0 | Apache-2.0 |
 
 ### Leve para o seu PC
