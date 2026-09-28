@@ -15,19 +15,42 @@
     Info,
     CircleAlert,
     X,
+    Download,
+    ShieldCheck,
+    LoaderCircle,
   } from "@lucide/svelte";
   import * as api from "./api";
-  import type { Snapshot, CameraView, Quality } from "./api";
+  import type { Snapshot, CameraView, Quality, UpdateView } from "./api";
   import { t } from "./i18n";
   import { holdRepeat } from "./holdRepeat";
   import { statusInfo } from "./status";
   import Segmented from "./Segmented.svelte";
   import Select from "./Select.svelte";
   import Toggle from "./Toggle.svelte";
+  import ColorControls from "./ColorControls.svelte";
 
-  let { snap, onsettings }: { snap: Snapshot; onsettings: () => void } = $props();
+  let {
+    snap,
+    update,
+    onsettings,
+    onupdate,
+  }: { snap: Snapshot; update: UpdateView; onsettings: () => void; onupdate: () => void } = $props();
 
   let busy = $state<"starting" | "stopping" | null>(null);
+  let adding = $state(false);
+  let addFailed = $state(false);
+
+  async function addCamera() {
+    adding = true;
+    addFailed = false;
+    try {
+      await api.setCameraRegistered(true);
+    } catch {
+      addFailed = true;
+    } finally {
+      adding = false;
+    }
+  }
 
   const info = $derived(statusInfo(snap));
   const s = $derived(snap.settings);
@@ -83,6 +106,11 @@
         </div>
       {/if}
     </div>
+    {#if update.version}
+      <button class="update-chip" title={t("upd.available.short", { v: update.version })} onclick={onupdate}>
+        <Download size={14} />{t("upd.chip")}
+      </button>
+    {/if}
     <button class="icon-btn" title={t("app.settings")} aria-label={t("app.settings")} onclick={onsettings}>
       <SettingsIcon size={20} />
     </button>
@@ -96,10 +124,23 @@
     </div>
   </div>
 
+  {#if snap.cameraMissing}
+    <div class="setup card">
+      <div class="setup-text">
+        <span class="setup-title">{t("portable.camera.title")}</span>
+        <span class="setup-hint">{t(addFailed ? "portable.camera.failed" : "portable.camera.hint")}</span>
+      </div>
+      <button class="btn" disabled={adding} onclick={addCamera}>
+        {#if adding}<LoaderCircle size={18} class="spin" />{:else}<ShieldCheck size={18} />{/if}
+        {t("portable.camera.add")}
+      </button>
+    </div>
+  {/if}
+
   <button
     class="btn power"
     class:accent={!snap.cameraOn}
-    disabled={busy !== null || (!snap.cameraOn && !!snap.problem)}
+    disabled={busy !== null || (!snap.cameraOn && (!!snap.problem || snap.cameraMissing))}
     onclick={toggleCamera}>
     {#if snap.cameraOn}<VideoOff size={18} />{:else}<Video size={18} />{/if}
     {#if busy === "starting"}{t("camera.starting")}{:else if busy === "stopping"}{t("camera.stopping")}{:else if snap.cameraOn}{t(
@@ -162,6 +203,7 @@
         </div>
       </div>
       <Toggle label={t("ctl.mirror")} checked={s.mirror} onchange={(v) => api.updateSettings({ mirror: v })} />
+      <ColorControls value={s.color} language={snap.language} />
     </div>
   </section>
 
@@ -314,6 +356,58 @@
   .power {
     min-height: 40px;
     font-size: 15px;
+  }
+
+  .update-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+    height: 26px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 13px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition-property: scale, background-color;
+    transition-duration: 150ms;
+  }
+  .update-chip:hover {
+    background: color-mix(in srgb, var(--accent-soft), var(--accent) 10%);
+  }
+  .update-chip:active {
+    scale: 0.96;
+  }
+  .setup {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+  .setup-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .setup-title {
+    font-weight: 600;
+  }
+  .setup-hint {
+    font-size: 12px;
+    color: var(--text-2);
+    text-wrap: pretty;
+  }
+  .setup :global(.spin) {
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      rotate: 360deg;
+    }
   }
 
   .notice {

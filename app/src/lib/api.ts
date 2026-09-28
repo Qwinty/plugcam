@@ -12,6 +12,7 @@ export interface Settings {
   quality: Quality;
   mirror: boolean;
   rotation: 0 | 90 | 180 | 270;
+  color: ColorAdjust;
   bitrateMbps: number | null;
   vcamWidth: number;
   vcamHeight: number;
@@ -20,6 +21,17 @@ export interface Settings {
   autoStartCamera: boolean;
   /** `null` = same as Windows. */
   language: string | null;
+  checkUpdates: boolean;
+  /** The version whose "What's new" was last shown; `null` on a fresh install. */
+  lastSeenVersion: string | null;
+}
+
+/** Picture adjustments made on the PC, each from -100 to 100. */
+export interface ColorAdjust {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  warmth: number;
 }
 
 export type Status =
@@ -63,6 +75,10 @@ export interface Snapshot {
   zoomRange: [number, number] | null;
   problem: string | null;
   notice: Notice | null;
+  /** Running from a portable folder rather than installed. */
+  portable: boolean;
+  /** Portable only: "Plugcam Camera" still has to be added to Windows. */
+  cameraMissing: boolean;
   mica: boolean;
   /** The language in use. */
   language: string;
@@ -79,6 +95,32 @@ export const setZoom = (value: number) => invoke<void>("set_zoom", { value });
 export const dismissNotice = () => invoke<void>("dismiss_notice");
 export const openUrl = (url: string) => invoke<void>("open_url", { url });
 export const setPreviewActive = (active: boolean) => invoke<void>("set_preview_active", { active });
+/** How wide the picture is shown, in physical pixels, so no wider JPEGs are made. */
+export const setPreviewWidth = (width: number) => invoke<void>("set_preview_width", { width });
+export const setCameraRegistered = (on: boolean) => invoke<void>("set_camera_registered", { on });
+
+export type UpdatePhase = "idle" | "checking" | "upToDate" | "available" | "downloading" | "installing" | "error";
+
+export interface UpdateView {
+  phase: UpdatePhase;
+  /** The newer version, once one was found. */
+  version: string | null;
+  /** Its release notes (Markdown). */
+  notes: string | null;
+  /** 0..1 while downloading, when the size is known. */
+  progress: number | null;
+  error: string | null;
+  portable: boolean;
+}
+
+export const updateState = () => invoke<UpdateView>("update_state");
+export const checkForUpdates = () => invoke<void>("check_for_updates");
+/** Resolves only on failure: on success the app restarts as the new version. */
+export const installUpdate = () => invoke<void>("install_update");
+
+export function onUpdate(cb: (u: UpdateView) => void): Promise<UnlistenFn> {
+  return listen<UpdateView>("update", (e) => cb(e.payload));
+}
 
 export function onState(cb: (s: Snapshot) => void): Promise<UnlistenFn> {
   return listen<Snapshot>("state", (e) => cb(e.payload));

@@ -19,7 +19,7 @@ path = "src/main.rs"
 [dependencies]
 env_logger = "0.11.11"
 fast_image_resize = "6.1.0"
-jpeg-encoder = "0.7.1"
+jpeg-encoder = { version = "0.7.1", features = ["simd"] }
 libloading = "0.8"
 log = "0.4.34"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -29,9 +29,11 @@ sys-locale = "0.3.2"
 tauri = { version = "2.11.6", features = ["tray-icon", "image-png"] }
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-single-instance = "2.4.5"
+tauri-plugin-updater = "2.13.0"
 thiserror = "2"
-windows = { version = "0.62.2", features = ["Win32_Media_MediaFoundation", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_System_Registry", "Win32_Foundation"] }
+windows = { version = "0.62.2", features = ["Win32_Media_MediaFoundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_System_Registry", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
 yuvutils-rs = "0.8.3"
+zip = { version = "4.6.1", default-features = false, features = ["deflate"] }
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }

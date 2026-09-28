@@ -39,18 +39,70 @@
   apps and browsers that use DirectShow: Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge,
   Firefox, and so web calls like Google Meet too.
 - **Good picture.** Up to 1080p at 30 fps, or 60 fps on phones that support it. The phone encodes
-  H.264 in hardware, so your PC barely notices.
+  H.264 in hardware and the PC's graphics chip decodes it, so your PC barely notices.
 - **All the controls you'd expect.** Back or front camera and each lens, zoom with 1×/2×/5×
-  presets, flashlight, rotation for a phone standing upright, mirror.
+  presets, flashlight, rotation for a phone standing upright, mirror, and brightness, contrast,
+  saturation and warmth.
 - **Free for good.** No watermarks, no time limits, no account, no telemetry. Apache-2.0.
+- **Light.** A 7.4 MB download. Waiting in the tray it takes 8 MB of memory; streaming from
+  there, under 1% of the CPU. Updates install themselves with one click.
 - **Speaks your language.** English, Deutsch, Español, Français, Italiano, Polski, Português,
   Türkçe, Українська, Русский, 日本語, 한국어, 简体中文.
+
+## How it compares
+
+The apps people usually try first, as of September 2026. Free tiers change often, so each name
+links to the vendor's own page.
+
+| | Plugcam | [DroidCam](https://droidcam.app/) | [Iriun](https://iriun.com/) | [iVCam](https://www.e2esoft.com/ivcam/) | [Camo](https://camo.com/pricing) | [Phone Link](https://support.microsoft.com/en-us/windows/apps/phonelink/use-your-mobile-device-s-camera) |
+|---|---|---|---|---|---|---|
+| App on the phone | **none** | yes | yes | yes | yes | Link to Windows |
+| Free picture | **1080p, 30 or 60 fps** | 640×480; HD has a watermark | up to 4K, with a watermark | watermark; 640×480 after the trial | up to 720p | 720p |
+| Ads | **none** | yes | yes | yes | none | none |
+| Connection | USB | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | Wi-Fi + Bluetooth |
+| Open source | **yes, Apache-2.0** | PC client only | no | no | no | no |
+| Windows download | **7.4 MB** | 98 MB | 2.6 MB | about 43 MB | about 475 MB | built into Windows 11 |
+
+Two app-free options you may already have: phones with Android 14 or newer can act as a USB
+webcam on their own if the maker turned that mode on (Pixels do), and
+[scrcpy](https://github.com/Genymobile/scrcpy), which Plugcam builds on, shows the camera in a
+window (on Windows you need OBS to turn that window into a webcam). What Plugcam still lacks next
+to the paid apps: Wi-Fi, 4K and sound.
+
+### Light on your PC
+
+Plugcam is a native Rust app with a small C++ virtual camera. The window is drawn by the WebView2
+that comes with Windows (through [Tauri](https://tauri.app)), so there is no bundled Chromium as
+in Electron apps. The video itself never goes through the web page: decoding (Windows' own H.264
+decoder, on the graphics chip), rotating, scaling, color adjustments and handing frames to the
+camera all happen in Rust, and the window only gets a small preview while it is open. Closed to
+the tray, Plugcam shuts the WebView down completely, so a camera streaming in the background
+takes under 1% of the CPU.
+
+Measured on a Ryzen 7 8845HS laptop with Windows 11, counting Plugcam and all its WebView2
+processes, averaged over a minute with [`scripts/measure.ps1`](scripts/measure.ps1):
+
+| | Memory (private) | CPU |
+|---|---|---|
+| In the tray | **8 MB** | 0% |
+| Window open, camera off | 211 MB | 0% |
+| Streaming 1080p30, in the tray | 126 MB | **0.7%** |
+| Streaming 1080p30, window open with preview | 375 MB | 3.9% |
+
+CPU is the share of all 16 threads of the 8-core processor. Streaming was measured with a
+OnePlus 11R at 1080p, 30 fps. The picture is decoded on the Radeon 780M built into the processor;
+its video memory is ordinary RAM, so the decoder's frame buffers count in the memory column.
+
+adb, which Plugcam talks to the phone through, adds about 9 MB; it is shared with any other
+Android tool you run.
 
 ## Get started
 
 1. **Install.** Download `Plugcam_x.y.z_x64-setup.exe` from the
    [latest release](https://github.com/Qwinty/plugcam/releases/latest) and run it. Windows asks for
-   administrator rights once, to register the camera.
+   administrator rights once, to register the camera. Plugcam then shows up in the Start menu.
+   Prefer not to install? Take `Plugcam_x.y.z_x64-portable.zip`, extract it anywhere and run
+   `Plugcam.exe`; it asks for administrator rights once on the first start, to add the camera.
 2. **Turn on USB debugging** on the phone: *Settings → About phone*, tap *Build number* seven
    times, then *Settings → System → Developer options → USB debugging*. Plugcam's first-run guide
    walks you through it.
@@ -59,6 +111,11 @@
 
 The installer is not code-signed yet, so SmartScreen may say "Windows protected your PC". Click
 *More info → Run anyway*, or check the file against the `.sha256` next to it in the release.
+
+**Updates come by themselves.** Plugcam looks for a new version once a day; when there is one, an
+*Update* button appears. One click downloads it, checks its signature, installs it and restarts
+Plugcam, which then shows what changed. Both the installed and the portable version update this
+way, and you can turn the daily check off in Settings.
 
 ## Screenshots
 
@@ -140,14 +197,18 @@ pnpm tauri dev                    # runs the app
 ```
 
 To build the installer: `.\scripts\stage-resources.ps1` (copies adb and the camera DLL into
-`src-tauri\resources`), then `pnpm tauri build`. Tests: `cargo test` in `src-tauri`.
+`src-tauri\resources`), then `pnpm tauri build`; `.\scripts\portable.ps1` packs the portable zip
+from that build. Tests: `cargo test` in `src-tauri`. Releases are built by
+[.github/workflows/release.yml](.github/workflows/release.yml) when a `v*` tag is pushed.
 
 The design notes (in Russian) are in [docs/SPEC.md](docs/SPEC.md).
 
 ## Privacy
 
 Plugcam has no servers and sends nothing anywhere. The video goes from the phone to your PC over
-the cable and stays there. Settings are a JSON file in `%APPDATA%\io.github.plugcam`.
+the cable and stays there. The only thing it fetches from the internet is the list of releases on
+GitHub, once a day, to see whether there is an update (turn it off in Settings). Settings are a
+JSON file in `%APPDATA%\io.github.plugcam`, or in the `data` folder of the portable version.
 
 ## License
 

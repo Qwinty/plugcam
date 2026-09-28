@@ -1,5 +1,5 @@
 //! Decoded NV12 picture → BGR frame of the virtual camera: color conversion, scaling to fit
-//! with black bars, and optional rotation and mirroring.
+//! with black bars, optional picture adjustments, rotation and mirroring.
 
 use fast_image_resize::images::{Image, ImageRef};
 use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer};
@@ -16,6 +16,91 @@ pub struct ColorInfo {
 impl Default for ColorInfo {
     fn default() -> Self {
         Self { full_range: true, bt709: false }
+    }
+}
+
+/// Simple picture adjustments, each from -100 to 100. All zero leaves the picture untouched
+/// and costs nothing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ColorAdjust {
+    /// Lifts or deepens the mid tones; black stays black and white stays white.
+    #[serde(deserialize_with = "lenient_percent")]
+    pub brightness: i8,
+    #[serde(deserialize_with = "lenient_percent")]
+    pub contrast: i8,
+    /// -100 is black and white.
+    #[serde(deserialize_with = "lenient_percent")]
+    pub saturation: i8,
+    /// Positive is warmer (towards orange), negative cooler (towards blue).
+    #[serde(deserialize_with = "lenient_percent")]
+    pub warmth: i8,
+}
+
+/// Any number (or null) reads as a value from -100 to 100, so one odd value in settings.json
+/// does not throw all the other settings away.
+fn lenient_percent<'de, D: serde::Deserializer<'de>>(d: D) -> Result<i8, D::Error> {
+    let v: Option<f64> = serde::Deserialize::deserialize(d)?;
+    Ok(v.filter(|v| v.is_finite()).map_or(0, |v| v.round().clamp(-100.0, 100.0) as i8))
+}
+
+impl ColorAdjust {
+    pub fn is_neutral(&self) -> bool {
+        *self == Self::default()
+    }
+
+    pub fn clamped(self) -> Self {
+        let c = |v: i8| v.clamp(-100, 100);
+        Self { brightness: c(self.brightness), contrast: c(self.contrast), saturation: c(self.saturation), warmth: c(self.warmth) }
+    }
+
+    /// Four bytes in one word, for handing to the pipeline thread without a lock.
+    pub fn to_bits(self) -> u32 {
+        u32::from_le_bytes([self.brightness as u8, self.contrast as u8, self.saturation as u8, self.warmth as u8])
+    }
+
+    pub fn from_bits(bits: u32) -> Self {
+        let [b, c, s, w] = bits.to_le_bytes().map(|v| v as i8);
+        Self { brightness: b, contrast: c, saturation: s, warmth: w }
+    }
+}
+
+/// Lookup tables for `ColorAdjust`: one for Y (unless it stays as it is), one each for U and V.
+struct ColorLuts {
+    key: (ColorAdjust, bool),
+    y: Option<[u8; 256]>,
+    u: [u8; 256],
+    v: [u8; 256],
+    /// U and V stay as they are, so the UV plane can be used unchanged.
+    chroma_neutral: bool,
+}
+
+impl ColorLuts {
+    fn new(adjust: ColorAdjust, full_range: bool) -> Self {
+        // Nominal black and white of Y, and the reach of U/V around 128.
+        let (black, white, chroma) = if full_range { (0.0, 255.0, 127.5) } else { (16.0, 235.0, 112.0) };
+        let gamma = 2f32.powf(-adjust.brightness as f32 / 100.0);
+        let contrast = 2f32.powf(adjust.contrast as f32 / 100.0);
+        let y = (adjust.brightness != 0 || adjust.contrast != 0).then(|| {
+            std::array::from_fn(|i| {
+                let t = ((i as f32 - black) / (white - black)).clamp(0.0, 1.0);
+                let t = (t.powf(gamma) - 0.5) * contrast + 0.5;
+                (black + t * (white - black)).round().clamp(0.0, 255.0) as u8
+            })
+        });
+        let saturation = 1.0 + adjust.saturation as f32 / 100.0;
+        // At 100 a fifth of the full chroma reach: clearly warm, not orange.
+        let shift = adjust.warmth as f32 / 100.0 * 0.2 * chroma;
+        let chroma_lut = |shift: f32| -> [u8; 256] {
+            std::array::from_fn(|i| (128.0 + (i as f32 - 128.0) * saturation + shift).round().clamp(0.0, 255.0) as u8)
+        };
+        Self {
+            key: (adjust, full_range),
+            y,
+            u: chroma_lut(-shift),
+            v: chroma_lut(shift),
+            chroma_neutral: adjust.saturation == 0 && adjust.warmth == 0,
+        }
     }
 }
 
@@ -65,6 +150,10 @@ pub struct FrameConverter {
     /// Clockwise degrees: 0, 90, 180 or 270.
     rotation: u16,
     placement: Option<Placement>,
+    color: ColorAdjust,
+    luts: Option<ColorLuts>,
+    adjusted_y: Vec<u8>,
+    adjusted_uv: Vec<u8>,
     src_bgr: Vec<u8>,
     scaled_y: Vec<u8>,
     scaled_uv: Vec<u8>,
@@ -84,6 +173,10 @@ impl FrameConverter {
             mirror: false,
             rotation: 0,
             placement: None,
+            color: ColorAdjust::default(),
+            luts: None,
+            adjusted_y: Vec::new(),
+            adjusted_uv: Vec::new(),
             src_bgr: Vec::new(),
             scaled_y: Vec::new(),
             scaled_uv: Vec::new(),
@@ -102,6 +195,10 @@ impl FrameConverter {
     /// Clockwise degrees; anything but 90, 180 or 270 means no rotation.
     pub fn set_rotation(&mut self, degrees: u16) {
         self.rotation = if matches!(degrees, 90 | 180 | 270) { degrees } else { 0 };
+    }
+
+    pub fn set_color(&mut self, adjust: ColorAdjust) {
+        self.color = adjust.clamped();
     }
 
     /// The last output frame (black until the first `convert`).
@@ -146,6 +243,39 @@ impl FrameConverter {
             let (cw, ch, scw, sch) = (w.div_ceil(2), h.div_ceil(2), sw.div_ceil(2), sh.div_ceil(2));
             resize_plane(r, uv_plane, (cw, ch), &mut self.scaled_uv, (scw, sch), PixelType::U8x2)?;
             (&self.scaled_y[..], &self.scaled_uv[..])
+        };
+
+        // Adjust the colors on the scaled NV12 planes: fewer pixels than the source, and half
+        // the bytes of BGR.
+        let (y_plane, uv_plane) = if self.color.is_neutral() {
+            (y_plane, uv_plane)
+        } else {
+            let key = (self.color, frame.color.full_range);
+            if self.luts.as_ref().is_none_or(|l| l.key != key) {
+                self.luts = Some(ColorLuts::new(key.0, key.1));
+            }
+            let luts = self.luts.as_ref().unwrap();
+            let y_plane = match &luts.y {
+                Some(lut) => {
+                    self.adjusted_y.resize(y_plane.len(), 0);
+                    for (dst, &src) in self.adjusted_y.iter_mut().zip(y_plane) {
+                        *dst = lut[src as usize];
+                    }
+                    &self.adjusted_y[..]
+                }
+                None => y_plane,
+            };
+            let uv_plane = if luts.chroma_neutral {
+                uv_plane
+            } else {
+                self.adjusted_uv.resize(uv_plane.len(), 0);
+                for (dst, src) in self.adjusted_uv.chunks_exact_mut(2).zip(uv_plane.chunks_exact(2)) {
+                    dst[0] = luts.u[src[0] as usize];
+                    dst[1] = luts.v[src[1] as usize];
+                }
+                &self.adjusted_uv[..]
+            };
+            (y_plane, uv_plane)
         };
 
         self.src_bgr.resize(sw as usize * sh as usize * 3, 0);
@@ -371,6 +501,54 @@ mod tests {
         assert!(close(pixel(out, w, 7, 1), [255, 255, 255]));
     }
 
+    #[test]
+    fn neutral_adjustments_change_nothing() {
+        let (y, uv) = solid(8, 4, [76, 85, 255]);
+        let mut conv = FrameConverter::new(8, 4);
+        let plain = conv.convert(&frame(8, 4, &y, &uv)).unwrap().to_vec();
+        conv.set_color(ColorAdjust { saturation: 30, ..Default::default() });
+        assert_ne!(conv.convert(&frame(8, 4, &y, &uv)).unwrap(), plain);
+        conv.set_color(ColorAdjust::default());
+        assert_eq!(conv.convert(&frame(8, 4, &y, &uv)).unwrap(), plain);
+    }
+
+    #[test]
+    fn brightness_lifts_mid_tones_but_keeps_black_and_white() {
+        let y = ColorLuts::new(ColorAdjust { brightness: 50, ..Default::default() }, true).y.unwrap();
+        assert_eq!((y[0], y[255]), (0, 255));
+        assert!(y[64] > 90 && y[128] > 150, "{} {}", y[64], y[128]);
+        let limited = ColorLuts::new(ColorAdjust { brightness: 50, ..Default::default() }, false).y.unwrap();
+        assert_eq!((limited[16], limited[235]), (16, 235));
+    }
+
+    #[test]
+    fn saturation_and_warmth_move_the_chroma() {
+        let gray = ColorLuts::new(ColorAdjust { saturation: -100, ..Default::default() }, true);
+        assert!(gray.y.is_none());
+        assert_eq!((gray.u[20], gray.v[240]), (128, 128));
+
+        let warm = ColorLuts::new(ColorAdjust { warmth: 100, ..Default::default() }, true);
+        assert!(warm.u[128] < 110 && warm.v[128] > 146, "{} {}", warm.u[128], warm.v[128]);
+        // A light gray picture made warmer turns orange: more red than blue.
+        let (y, uv) = solid(8, 4, [200, 128, 128]);
+        let mut conv = FrameConverter::new(8, 4);
+        conv.set_color(ColorAdjust { warmth: 100, ..Default::default() });
+        let [b, _, r] = pixel(conv.convert(&frame(8, 4, &y, &uv)).unwrap(), 8, 1, 1);
+        assert!(r > b + 40, "r {r} b {b}");
+    }
+
+    #[test]
+    fn odd_color_values_are_clamped_not_rejected() {
+        let c: ColorAdjust = serde_json::from_str(r#"{"brightness": 500, "contrast": -1000, "saturation": null, "warmth": 12.6}"#).unwrap();
+        assert_eq!(c, ColorAdjust { brightness: 100, contrast: -100, saturation: 0, warmth: 13 });
+    }
+
+    #[test]
+    fn color_adjust_round_trips_through_bits() {
+        let c = ColorAdjust { brightness: -100, contrast: 7, saturation: 100, warmth: -1 };
+        assert_eq!(ColorAdjust::from_bits(c.to_bits()), c);
+    }
+
     /// `cargo test --release convert_speed -- --ignored --nocapture`
     #[test]
     #[ignore]
@@ -386,6 +564,13 @@ mod tests {
             }
             println!("1080p at {deg}: {:.2} ms per frame", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
         }
+        conv.set_rotation(0);
+        conv.set_color(ColorAdjust { brightness: 20, contrast: 10, saturation: 10, warmth: 10 });
+        let t = std::time::Instant::now();
+        for _ in 0..20 {
+            conv.convert(&frame(w, h, &y, &uv)).unwrap();
+        }
+        println!("1080p with color adjustments: {:.2} ms per frame", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
     }
 
     #[test]

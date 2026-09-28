@@ -150,6 +150,7 @@ fn run(args: Args) -> Result<(), String> {
             camera: args.camera.clone(),
             mirror,
             rotation: 0,
+            color: Default::default(),
             dump: args.dump,
             preview: None,
             on_zoom: None,

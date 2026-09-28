@@ -5,14 +5,14 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use crate::adb::Adb;
 use crate::decode::H264Decoder;
-use crate::frame::FrameConverter;
+use crate::frame::{ColorAdjust, FrameConverter};
 use crate::preview::PreviewSlot;
 use crate::scrcpy::protocol::{self, ControlMessage, Packet};
 use crate::scrcpy::server::{self, CameraParams, Session};
@@ -35,6 +35,8 @@ pub struct PipelineConfig {
     pub mirror: bool,
     /// Clockwise degrees, turned on the PC so it can change without restarting the stream.
     pub rotation: u16,
+    /// Brightness, contrast, saturation and warmth; can change while streaming.
+    pub color: ColorAdjust,
     /// Record the raw video stream (packets after the codec id) for test fixtures.
     pub dump: Option<PathBuf>,
     /// Where to offer frames for the app window's preview.
@@ -67,6 +69,8 @@ struct Shared {
     stop: AtomicBool,
     mirror: AtomicBool,
     rotation: AtomicU16,
+    /// `ColorAdjust::to_bits`.
+    color: AtomicU32,
     video: Mutex<Option<TcpStream>>,
     control: Mutex<Option<TcpStream>>,
     stats: Mutex<Stats>,
@@ -83,6 +87,7 @@ impl Pipeline {
             stop: AtomicBool::new(false),
             mirror: AtomicBool::new(config.mirror),
             rotation: AtomicU16::new(config.rotation),
+            color: AtomicU32::new(config.color.to_bits()),
             video: Mutex::new(None),
             control: Mutex::new(None),
             stats: Mutex::new(Stats::default()),
@@ -109,6 +114,10 @@ impl Pipeline {
 
     pub fn set_rotation(&self, degrees: u16) {
         self.shared.rotation.store(degrees, Ordering::Relaxed);
+    }
+
+    pub fn set_color(&self, adjust: ColorAdjust) {
+        self.shared.color.store(adjust.to_bits(), Ordering::Relaxed);
     }
 
     pub fn stats(&self) -> Stats {
@@ -290,6 +299,7 @@ fn stream(
                 let Some(d) = decoder.as_mut() else { continue };
                 converter.set_mirror(shared.mirror.load(Ordering::Relaxed));
                 converter.set_rotation(shared.rotation.load(Ordering::Relaxed));
+                converter.set_color(ColorAdjust::from_bits(shared.color.load(Ordering::Relaxed)));
                 d.decode(&data, pts_us, &mut |picture| match converter.convert(picture) {
                     Ok(bgr) => {
                         vcam.send_frame(bgr);

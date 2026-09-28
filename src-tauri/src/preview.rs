@@ -1,9 +1,10 @@
 //! Small JPEG preview of the camera picture for the app window, at most 40 fps (a 30 fps
 //! stream shows every frame) and only while the window is visible. The pipeline only copies
 //! a frame into the slot; scaling and encoding happen on the preview thread so they never
-//! delay the virtual camera.
+//! delay the virtual camera. The JPEG is only as wide as the window shows it: encoding costs
+//! about 11 ns per pixel.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
@@ -11,10 +12,15 @@ use fast_image_resize::images::{Image, ImageRef};
 use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer};
 
 const INTERVAL: Duration = Duration::from_millis(25);
+/// Widest preview sent, whatever the window asks for.
+pub const MAX_WIDTH: u32 = 960;
+const MIN_WIDTH: u32 = 160;
 
 #[derive(Default)]
 pub struct PreviewSlot {
     enabled: AtomicBool,
+    /// Width the window shows the picture at, in physical pixels; 0 = `MAX_WIDTH`.
+    width: AtomicU32,
     inner: Mutex<Slot>,
     ready: Condvar,
 }
@@ -35,6 +41,18 @@ impl PreviewSlot {
 
     pub fn is_enabled(&self) -> bool {
         self.enabled.load(Ordering::Relaxed)
+    }
+
+    pub fn set_width(&self, width: u32) {
+        self.width.store(width.clamp(MIN_WIDTH, MAX_WIDTH), Ordering::Relaxed);
+    }
+
+    /// How wide the JPEG should be.
+    pub fn width(&self) -> u32 {
+        match self.width.load(Ordering::Relaxed) {
+            0 => MAX_WIDTH,
+            w => w,
+        }
     }
 
     /// Called by the pipeline for every frame; copies at most 40 of them per second.
@@ -74,6 +92,10 @@ pub struct PreviewEncoder {
 impl PreviewEncoder {
     pub fn new(max_width: u32) -> Self {
         Self { max_width, resizer: Resizer::new(), scaled: Vec::new() }
+    }
+
+    pub fn set_max_width(&mut self, max_width: u32) {
+        self.max_width = max_width;
     }
 
     /// Scales a BGR frame down to `max_width` (keeping the aspect ratio) and encodes it as JPEG.
@@ -130,5 +152,34 @@ mod tests {
         let h = u16::from_be_bytes([jpeg[sof + 5], jpeg[sof + 6]]);
         let w = u16::from_be_bytes([jpeg[sof + 7], jpeg[sof + 8]]);
         assert_eq!((w, h), (640, 360));
+    }
+
+    #[test]
+    fn width_is_clamped() {
+        let slot = PreviewSlot::default();
+        assert_eq!(slot.width(), MAX_WIDTH);
+        slot.set_width(5000);
+        assert_eq!(slot.width(), MAX_WIDTH);
+        slot.set_width(10);
+        assert_eq!(slot.width(), MIN_WIDTH);
+        slot.set_width(620);
+        assert_eq!(slot.width(), 620);
+    }
+
+    /// `cargo test --release encode_speed -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn encode_speed() {
+        // Something like a real picture: smooth gradients with a little noise.
+        let bgr: Vec<u8> = (0..1920 * 1080 * 3).map(|i: usize| ((i / 3 % 1920 / 8 + i / 5760 / 6) as u8).wrapping_add((i * 7919 % 13) as u8)).collect();
+        for width in [960, 640] {
+            let mut enc = PreviewEncoder::new(width);
+            let t = std::time::Instant::now();
+            let mut size = 0;
+            for _ in 0..20 {
+                size = enc.encode(&bgr, 1920, 1080).unwrap().len();
+            }
+            println!("preview {width} wide: {:.2} ms per frame, {} KB", t.elapsed().as_secs_f64() * 1000.0 / 20.0, size / 1024);
+        }
     }
 }

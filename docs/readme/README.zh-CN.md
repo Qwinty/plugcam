@@ -28,18 +28,53 @@
 
 - **手机上什么都不用装。** Plugcam 通过 USB 调试与手机通信，只在传输期间在手机上运行 [scrcpy](https://github.com/Genymobile/scrcpy) 的摄像头部分。
 - **真正的 Windows 摄像头。** “Plugcam Camera”会和其他摄像头一起出现在使用 DirectShow 的软件和浏览器中：Zoom、Discord、Telegram Desktop、OBS、Chrome、Edge、Firefox，因此也能用于 Google Meet 等网页通话。
-- **画质好。** 最高 1080p 30 帧/秒，支持的手机可达 60 帧/秒。手机用硬件编码 H.264，电脑几乎没有负担。
-- **该有的控制都有。** 后置或前置摄像头及各个镜头、1×/2×/5× 变焦、手电筒、竖放手机时的画面旋转、镜像。
+- **画质好。** 最高 1080p 30 帧/秒，支持的手机可达 60 帧/秒。手机用硬件编码 H.264，电脑的显卡芯片负责解码，电脑几乎没有负担。
+- **该有的控制都有。** 后置或前置摄像头及各个镜头、1×/2×/5× 变焦、手电筒、竖放手机时的画面旋转、镜像，以及亮度、对比度、饱和度和色温。
 - **永久免费。** 没有水印、没有时长限制、无需账号、没有遥测。Apache-2.0 许可。
+- **轻巧。** 下载仅 7.4 MB。在托盘中待命时只占 8 MB 内存；从托盘传输画面时，CPU 占用不到 1%。更新一键即可自动安装。
 - **支持你的语言。** 13 种语言，包括简体中文。
+
+## 与同类软件对比
+
+以下是大家通常最先尝试的几款应用，信息截至 2026 年 9 月。免费版的限制经常变化，所以每个名称都链接到厂商自己的页面。
+
+| | Plugcam | [DroidCam](https://droidcam.app/) | [Iriun](https://iriun.com/) | [iVCam](https://www.e2esoft.com/ivcam/) | [Camo](https://camo.com/pricing) | [Phone Link](https://support.microsoft.com/en-us/windows/apps/phonelink/use-your-mobile-device-s-camera) |
+|---|---|---|---|---|---|---|
+| 手机端应用 | **不需要** | 需要 | 需要 | 需要 | 需要 | Link to Windows |
+| 免费版画质 | **1080p，30 或 60 帧/秒** | 640×480；HD 有水印 | 最高 4K，有水印 | 有水印；试用期后 640×480 | 最高 720p | 720p |
+| 广告 | **无** | 有 | 有 | 有 | 无 | 无 |
+| 连接方式 | USB | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | Wi-Fi + 蓝牙 |
+| 开源 | **是，Apache-2.0** | 仅电脑客户端 | 否 | 否 | 否 | 否 |
+| Windows 下载大小 | **7.4 MB** | 98 MB | 2.6 MB | 约 43 MB | 约 475 MB | Windows 11 内置 |
+
+你可能已经有两种无需安装应用的办法：Android 14 及更高版本的手机，如果厂商开启了这一模式（Pixel 已开启），本身就能当作 USB 摄像头；Plugcam 所基于的 [scrcpy](https://github.com/Genymobile/scrcpy) 也能在窗口中显示摄像头画面（在 Windows 上需要借助 OBS 才能把这个窗口变成摄像头）。与付费应用相比，Plugcam 目前还缺少 Wi-Fi、4K 和声音。
+
+### 对电脑的负担很小
+
+Plugcam 是一款原生 Rust 应用，配有一个小巧的 C++ 虚拟摄像头。窗口由 Windows 自带的 WebView2 绘制（通过 [Tauri](https://tauri.app)），因此不像 Electron 应用那样捆绑 Chromium。视频本身从不经过网页：解码（使用 Windows 自带的 H.264 解码器，在显卡芯片上完成）、旋转、缩放、色彩调整以及把画面交给摄像头，全部在 Rust 中完成，窗口打开时只接收一个小预览。关闭到托盘后，Plugcam 会彻底关闭 WebView，因此在后台运行的摄像头 CPU 占用不到 1%。
+
+测试环境为搭载 Ryzen 7 8845HS 的 Windows 11 笔记本，统计 Plugcam 及其所有 WebView2 进程，用 [`scripts/measure.ps1`](../../scripts/measure.ps1) 取一分钟的平均值：
+
+| | 内存（专用） | CPU |
+|---|---|---|
+| 在托盘中 | **8 MB** | 0% |
+| 窗口打开，摄像头关闭 | 211 MB | 0% |
+| 传输 1080p30 画面，在托盘中 | 126 MB | **0.7%** |
+| 传输 1080p30 画面，窗口打开并显示预览 | 375 MB | 3.9% |
+
+CPU 为占 8 核处理器全部 16 个线程的比例。传输画面在 OnePlus 11R 上以 1080p、30 fps 测得。画面由处理器内置的 Radeon 780M 解码；它的显存就是普通内存，所以解码器的帧缓冲计入内存一栏。
+
+Plugcam 通过 adb 与手机通信，adb 另占约 9 MB，并与你运行的其他 Android 工具共用。
 
 ## 快速开始
 
-1. **安装。** 从[最新版本](https://github.com/Qwinty/plugcam/releases/latest)下载 `Plugcam_x.y.z_x64-setup.exe` 并运行。Windows 会请求一次管理员权限，用于注册摄像头。
+1. **安装。** 从[最新版本](https://github.com/Qwinty/plugcam/releases/latest)下载 `Plugcam_x.y.z_x64-setup.exe` 并运行。Windows 会请求一次管理员权限，用于注册摄像头。安装后 Plugcam 会出现在开始菜单中。不想安装？可以下载 `Plugcam_x.y.z_x64-portable.zip`，解压到任意位置并运行 `Plugcam.exe`；首次启动时它会请求一次管理员权限，用于添加摄像头。
 2. **在手机上开启 USB 调试**：*设置 → 关于手机*，连续点按 *版本号* 七次，然后 *设置 → 系统 → 开发者选项 → USB 调试*。Plugcam 的初始设置向导会一步步引导你。
 3. **连接手机**，在手机上点按 *允许*，然后点击 **打开摄像头**。在视频软件中选择 **Plugcam Camera**。
 
 安装程序暂未签名，SmartScreen 可能会提示“Windows 已保护你的电脑”。点击 *更多信息 → 仍要运行*，或用发布页中附带的 `.sha256` 校验文件。
+
+**更新自动送达。** Plugcam 每天检查一次新版本；有新版本时会出现 *更新* 按钮。点一下即可下载、校验签名、安装并重启 Plugcam，随后显示更新内容。安装版和便携版都以这种方式更新，你也可以在设置中关闭每日检查。
 
 ## 截图
 
@@ -88,6 +123,6 @@
 
 ## 隐私
 
-Plugcam 没有服务器，不会向任何地方发送数据。视频通过数据线从手机传到电脑，只留在你的电脑上。
+Plugcam 没有服务器，不会向任何地方发送数据。视频通过数据线从手机传到电脑，只留在你的电脑上。它唯一会从网上获取的是 GitHub 上的版本列表，每天一次，用于检查是否有更新（可在设置中关闭）。设置保存在 `%APPDATA%\io.github.plugcam` 中的 JSON 文件里，便携版则保存在 `data` 文件夹中。
 
 许可证：[Apache-2.0](../../LICENSE)。第三方组件见 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。

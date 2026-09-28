@@ -3,17 +3,18 @@
 mod controller;
 pub mod i18n;
 mod tray;
+mod updates;
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::{AppHandle, Manager, State, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent, State, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 pub use controller::{Controller, Snapshot};
 
-use crate::preview::PreviewEncoder;
+use crate::preview::{self, PreviewEncoder};
 
 /// Passed by the autostart entry so the app starts in the tray.
 const MINIMIZED_ARG: &str = "--minimized";
@@ -27,13 +28,17 @@ pub fn run() {
         // Must be first: a second launch only brings the running window forward.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_window(app)))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![MINIMIZED_ARG])))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(PreviewChannel::default())
+        .manage(updates::Updates::default())
         .setup(|app| {
-            let settings_path = app.path().app_config_dir()?.join("settings.json");
+            let dir = if crate::portable::is_portable() { crate::portable::data_dir() } else { app.path().app_config_dir()? };
+            let settings_path = dir.join("settings.json");
             let controller = Controller::new(app.handle().clone(), settings_path);
             app.manage(controller.clone());
             tray::create(app.handle(), &controller.snapshot())?;
             start_preview_thread(app.handle().clone(), controller);
+            updates::start(app.handle().clone());
 
             if !std::env::args().any(|a| a == MINIMIZED_ARG) {
                 show_window(app.handle());
@@ -41,16 +46,22 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| match event {
+            // Closing to the tray destroys the window rather than hiding it: its WebView2 processes
+            // hold about 200 MB that nothing needs while the camera works in the background.
             WindowEvent::CloseRequested { api, .. } => {
                 let app = window.app_handle();
                 let controller = app.state::<Arc<Controller>>();
                 if controller.snapshot().settings.close_to_tray {
-                    api.prevent_close();
-                    let _ = window.hide();
                     controller.preview.set_enabled(false);
                 } else {
+                    api.prevent_close();
                     quit(app);
                 }
+            }
+            // WebView2 does not report minimizing to the page, so stop the preview from here.
+            WindowEvent::Resized(_) => {
+                let visible = window.is_visible().unwrap_or(true) && !window.is_minimized().unwrap_or(false);
+                window.app_handle().state::<Arc<Controller>>().preview.set_enabled(visible);
             }
             _ => {}
         })
@@ -64,17 +75,37 @@ pub fn run() {
             dismiss_notice,
             subscribe_preview,
             set_preview_active,
+            set_preview_width,
             open_url,
+            set_camera_registered,
+            updates::update_state,
+            updates::check_for_updates,
+            updates::install_update,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Plugcam");
+        .build(tauri::generate_context!())
+        .expect("error while running Plugcam")
+        .run(|_, event| {
+            // The last window closing leaves the app in the tray; only `quit` ends it.
+            if let RunEvent::ExitRequested { code: None, api, .. } = event {
+                api.prevent_exit();
+            }
+        });
 }
 
+/// Brings the window forward, creating it (from tauri.conf.json) if it was closed to the tray.
 pub fn show_window(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
+    let window = app.get_webview_window("main").or_else(|| {
+        let config = app.config().app.windows.iter().find(|w| w.label == "main")?;
+        WebviewWindowBuilder::from_config(app, config)
+            .and_then(|b| b.build())
+            .map_err(|e| log::error!("creating the window: {e}"))
+            .ok()
+    });
+    if let Some(w) = window {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        app.state::<Arc<Controller>>().preview.set_enabled(true);
     }
 }
 
@@ -96,10 +127,11 @@ fn start_preview_thread(app: AppHandle, controller: Arc<Controller>) {
     std::thread::Builder::new()
         .name("preview".into())
         .spawn(move || {
-            let mut encoder = PreviewEncoder::new(960);
+            let mut encoder = PreviewEncoder::new(preview::MAX_WIDTH);
             let mut buf = Vec::new();
             loop {
                 let Some((w, h)) = controller.preview.take(&mut buf, Duration::from_millis(500)) else { continue };
+                encoder.set_max_width(controller.preview.width());
                 let jpeg = match encoder.encode(&buf, w, h) {
                     Ok(j) => j,
                     Err(e) => {
@@ -168,6 +200,19 @@ fn subscribe_preview(channel: Channel<InvokeResponseBody>, holder: State<Preview
 #[tauri::command]
 fn set_preview_active(c: Ctl, active: bool) {
     c.preview.set_enabled(active);
+}
+
+/// How wide the window shows the preview, in physical pixels.
+#[tauri::command]
+fn set_preview_width(c: Ctl, width: u32) {
+    c.preview.set_width(width);
+}
+
+/// Portable only: adds "Plugcam Camera" to Windows (or removes it) after the consent prompt.
+#[tauri::command]
+async fn set_camera_registered(c: Ctl<'_>, on: bool) -> Result<(), String> {
+    let c = c.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || c.set_camera_registered(on)).await.map_err(|e| e.to_string())?
 }
 
 /// Opens help links (driver download, docs) in the default browser; https only.

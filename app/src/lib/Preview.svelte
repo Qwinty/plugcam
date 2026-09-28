@@ -3,7 +3,7 @@
   // and only while the window is visible.
   import { onMount } from "svelte";
   import { Video, LoaderCircle } from "@lucide/svelte";
-  import { subscribePreview, onPreviewClear, setPreviewActive } from "./api";
+  import { subscribePreview, onPreviewClear, setPreviewActive, setPreviewWidth } from "./api";
 
   let {
     streaming,
@@ -27,7 +27,9 @@
   let drawing = false;
 
   onMount(() => {
-    const ctx = canvas.getContext("2d")!;
+    // A CPU-backed canvas: with GPU decoding of 40 JPEGs a second WebView2's GPU process holds
+    // about 500 MB more memory for nothing.
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
     subscribePreview(async (jpeg) => {
       if (drawing) return; // drop a frame rather than queue them
       drawing = true;
@@ -50,7 +52,32 @@
     });
     const onVisibility = () => setPreviewActive(!document.hidden);
     document.addEventListener("visibilitychange", onVisibility);
+
+    // Ask for JPEGs as wide as the picture is on screen (it is letterboxed inside the canvas).
+    let sentWidth = 0;
+    const measure = () => {
+      const aspect = canvas.width / canvas.height || 16 / 9;
+      const shown = Math.min(canvas.clientWidth, canvas.clientHeight * aspect) * devicePixelRatio;
+      const width = Math.ceil(shown / 16) * 16;
+      if (width > 0 && width !== sentWidth) {
+        sentWidth = width;
+        setPreviewWidth(width);
+      }
+    };
+    const sizer = new ResizeObserver(measure);
+    sizer.observe(canvas);
+    // Moving to a monitor with other scaling keeps the CSS size but changes the pixels.
+    let scale = matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+    const onScale = () => {
+      scale.removeEventListener("change", onScale);
+      scale = matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+      scale.addEventListener("change", onScale);
+      measure();
+    };
+    scale.addEventListener("change", onScale);
     return () => {
+      sizer.disconnect();
+      scale.removeEventListener("change", onScale);
       document.removeEventListener("visibilitychange", onVisibility);
       unlisten.then((f) => f());
     };

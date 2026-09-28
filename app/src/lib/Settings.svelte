@@ -1,13 +1,57 @@
 <script lang="ts">
   // Settings in the side panel; the video stays visible next to it.
-  import { ArrowLeft, ChevronRight, Languages } from "@lucide/svelte";
+  import { ArrowLeft, ChevronRight, Languages, LoaderCircle } from "@lucide/svelte";
   import * as api from "./api";
-  import type { Snapshot } from "./api";
+  import type { Snapshot, UpdateView } from "./api";
   import { t, LANGUAGES } from "./i18n";
   import Select from "./Select.svelte";
   import Toggle from "./Toggle.svelte";
 
-  let { snap, onback, onwizard }: { snap: Snapshot; onback: () => void; onwizard: () => void } = $props();
+  let {
+    snap,
+    update,
+    onback,
+    onwizard,
+    onupdate,
+    onwhatsnew,
+  }: {
+    snap: Snapshot;
+    update: UpdateView;
+    onback: () => void;
+    onwizard: () => void;
+    onupdate: () => void;
+    onwhatsnew: () => void;
+  } = $props();
+
+  const checking = $derived(update.phase === "checking");
+  const updateLine = $derived.by(() => {
+    switch (update.phase) {
+      case "checking":
+        return t("upd.checking");
+      case "upToDate":
+        return t("upd.upToDate");
+      case "available":
+      case "downloading":
+      case "installing":
+        return t("upd.available.short", { v: update.version ?? "" });
+      case "error":
+        return t("upd.checkFailed");
+      default:
+        return t("set.version", { v: __APP_VERSION__ });
+    }
+  });
+
+  let removing = $state(false);
+  async function removeCamera() {
+    removing = true;
+    try {
+      await api.setCameraRegistered(false);
+    } catch {
+      // Declined at the Windows prompt: nothing changed.
+    } finally {
+      removing = false;
+    }
+  }
 
   const s = $derived(snap.settings);
   const sizes = [
@@ -104,9 +148,46 @@
   </section>
 
   <section class="section">
+    <h2>{t("set.updates")}</h2>
+    <div class="card">
+      <Toggle
+        label={t("set.checkUpdates")}
+        hint={t("set.checkUpdates.hint")}
+        checked={s.checkUpdates}
+        onchange={(v) => api.updateSettings({ checkUpdates: v })} />
+      <div class="row">
+        <span class="row-text">
+          <span>{t("set.version", { v: __APP_VERSION__ })}{snap.portable ? ` · ${t("set.portable")}` : ""}</span>
+          <span class="row-hint" class:accent={update.version && update.phase !== "error"} title={update.error ?? undefined}>{updateLine}</span>
+        </span>
+        {#if update.version && update.phase !== "checking"}
+          <button class="btn accent small" onclick={onupdate}>{t("upd.install")}</button>
+        {:else}
+          <button class="btn small" disabled={checking} onclick={() => api.checkForUpdates()}>
+            {#if checking}<LoaderCircle size={16} class="spin" />{/if}
+            {t("upd.checkNow")}
+          </button>
+        {/if}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
     <h2>{t("set.about")}</h2>
     <div class="card">
-      <div class="row"><span>Plugcam</span><span class="row-hint">{t("set.version", { v: __APP_VERSION__ })}</span></div>
+      <button class="row link first" onclick={onwhatsnew}>
+        <span>{t("set.whatsNew")}</span>
+        <ChevronRight size={16} />
+      </button>
+      {#if snap.portable && !snap.cameraMissing}
+        <button class="row link middle" disabled={removing} onclick={removeCamera}>
+          <span class="row-text">
+            <span>{t("set.removeCamera")}</span>
+            <span class="row-hint">{t("set.removeCamera.hint")}</span>
+          </span>
+          {#if removing}<LoaderCircle size={16} class="spin" />{:else}<ChevronRight size={16} />{/if}
+        </button>
+      {/if}
       <button class="row link" onclick={onwizard}>
         <span>{t("set.rerunWizard")}</span>
         <ChevronRight size={16} />
@@ -167,8 +248,34 @@
     transition-property: background-color;
     transition-duration: 150ms;
   }
-  .link:hover {
+  .link.first {
+    border-radius: 7px 7px 0 0;
+  }
+  .link.middle {
+    border-radius: 0;
+  }
+  .link:hover:not(:disabled) {
     background: var(--control-hover);
+  }
+  .row-hint.accent {
+    color: var(--accent-text);
+  }
+  .btn.small {
+    flex: none;
+    min-height: 30px;
+    padding: 0 12px;
+    font-weight: 400;
+  }
+  .btn.accent.small {
+    font-weight: 600;
+  }
+  .row :global(.spin) {
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      rotate: 360deg;
+    }
   }
   .link :global(svg) {
     color: var(--text-2);

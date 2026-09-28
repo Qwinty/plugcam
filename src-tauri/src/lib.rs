@@ -4,6 +4,7 @@ pub mod decode;
 pub mod frame;
 pub mod pipeline;
 pub mod platform;
+pub mod portable;
 pub mod preview;
 pub mod resources;
 pub mod scrcpy;

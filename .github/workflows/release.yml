@@ -1,7 +1,12 @@
 name: release
 
 # Push a tag like v0.2.0 (same as the version in tauri.conf.json and package.json): builds the
-# installer and attaches it to a draft release with the notes from docs/releases/<tag>.md.
+# installer and the portable zip, signs both for the updater, writes latest.json and attaches all
+# of it to a draft release with the notes from docs/releases/<tag>.md. Publishing the draft is
+# what makes installed copies see the update (they read releases/latest/download/latest.json).
+#
+# Needs the repository secrets TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+# (the key whose public half is plugins.updater.pubkey in tauri.conf.json).
 on:
   push:
     tags: ["v*"]
@@ -32,27 +37,42 @@ jobs:
         working-directory: src-tauri
         run: cargo test --release
 
-      - name: Installer
+      - name: Installer and portable zip
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
+          $tag = "${{ github.ref_name }}"
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne $tag) { throw "tag $tag does not match version $version in tauri.conf.json" }
           ./scripts/stage-resources.ps1 -Download
           pnpm install --frozen-lockfile
           pnpm tauri build
+          ./scripts/portable.ps1
+          ./scripts/update-manifest.ps1 -Tag $tag
 
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
-          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower()
-          "$hash  $($installer.Name)" | Out-File -Encoding ascii "$($installer.FullName).sha256"
+          $bundle = "src-tauri/target/release/bundle"
+          $files = @(
+            (Get-ChildItem "$bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
+            (Get-ChildItem "$bundle/portable/*-portable.zip" | Select-Object -First 1).FullName
+          )
+          foreach ($f in @($files)) {
+            $hash = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
+            "$hash  $(Split-Path $f -Leaf)" | Out-File -Encoding ascii "$f.sha256"
+            $files += "$f.sha256"
+          }
+          $files += (Resolve-Path "$bundle/latest.json").Path
           $notes = "docs/releases/$tag.md"
-          if (-not (Test-Path $notes)) { $notes = $null }
           if (gh release view $tag 2>$null) {
             # Made by hand (publishing a draft creates the tag): keep the files it was tested with.
             Write-Output "Release $tag already exists; leaving its files alone."
-          } elseif ($notes) {
-            gh release create $tag $installer.FullName "$($installer.FullName).sha256" --draft --title "Plugcam $tag" --notes-file $notes
+          } elseif (Test-Path $notes) {
+            gh release create $tag @files --draft --title "Plugcam $tag" --notes-file $notes
           } else {
-            gh release create $tag $installer.FullName "$($installer.FullName).sha256" --draft --title "Plugcam $tag" --generate-notes
+            gh release create $tag @files --draft --title "Plugcam $tag" --generate-notes
           }

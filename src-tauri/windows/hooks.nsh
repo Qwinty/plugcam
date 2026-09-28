@@ -14,10 +14,34 @@
   ${EndIf}
 !macroend
 
+; A video app that has the camera open keeps plugcam_cam.dll loaded, so it cannot be
+; overwritten, but it can be renamed: move the old one aside and delete it now or after a reboot.
+!macro PLUGCAM_MOVE_ASIDE DLL
+  ${If} ${FileExists} "${DLL}"
+    Delete "${DLL}.old"
+    Rename "${DLL}" "${DLL}.old"
+  ${EndIf}
+!macroend
+
+!macro PLUGCAM_DELETE_OLD
+  Delete /REBOOTOK "$INSTDIR\resources\plugcam_cam.dll.old"
+  Delete /REBOOTOK "$INSTDIR\resources\x86\plugcam_cam.dll.old"
+!macroend
+
+!macro NSIS_HOOK_PREINSTALL
+  !insertmacro PLUGCAM_MOVE_ASIDE "$INSTDIR\resources\plugcam_cam.dll"
+  !insertmacro PLUGCAM_MOVE_ASIDE "$INSTDIR\resources\x86\plugcam_cam.dll"
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
   !insertmacro PLUGCAM_REGSVR32 "/s"
+  !insertmacro PLUGCAM_DELETE_OLD
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
   !insertmacro PLUGCAM_REGSVR32 "/u /s"
+!macroend
+
+!macro NSIS_HOOK_POSTUNINSTALL
+  !insertmacro PLUGCAM_DELETE_OLD
 !macroend

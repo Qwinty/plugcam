@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::frame::ColorAdjust;
 use crate::scrcpy::cameras::Quality;
 use crate::scrcpy::server::{CameraParams, Facing};
 
@@ -21,6 +22,8 @@ pub struct Settings {
     pub mirror: bool,
     /// Clockwise degrees of the picture: 0, 90, 180 or 270.
     pub rotation: u16,
+    /// Picture adjustments made on the PC.
+    pub color: ColorAdjust,
     /// `None` = automatic, by quality.
     pub bitrate_mbps: Option<u32>,
     pub vcam_width: u32,
@@ -32,6 +35,10 @@ pub struct Settings {
     pub language: Option<String>,
     /// Lenses that sent no picture, by phone model; hidden from the lens picker.
     pub broken_cameras: BTreeMap<String, Vec<String>>,
+    /// Look for a new version at start and once a day.
+    pub check_updates: bool,
+    /// The version whose "What's new" was last shown; `None` on a fresh install.
+    pub last_seen_version: Option<String>,
 }
 
 impl Default for Settings {
@@ -43,6 +50,7 @@ impl Default for Settings {
             quality: Quality::Standard,
             mirror: false,
             rotation: 0,
+            color: ColorAdjust::default(),
             bitrate_mbps: None,
             vcam_width: 1920,
             vcam_height: 1080,
@@ -51,6 +59,8 @@ impl Default for Settings {
             auto_start_camera: false,
             language: None,
             broken_cameras: BTreeMap::new(),
+            check_updates: true,
+            last_seen_version: None,
         }
     }
 }
@@ -93,6 +103,7 @@ impl Settings {
             (self.vcam_width, self.vcam_height) = (d.vcam_width, d.vcam_height);
         }
         self.bitrate_mbps = self.bitrate_mbps.map(|b| b.clamp(4, 40));
+        self.color = self.color.clamped();
         if self.language.as_deref().is_some_and(|l| !crate::app::i18n::SUPPORTED_LANGUAGES.contains(&l)) {
             self.language = None;
         }

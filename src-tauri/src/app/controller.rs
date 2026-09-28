@@ -24,7 +24,7 @@ use crate::scrcpy::{server, zoom};
 use crate::settings::Settings;
 use crate::vcam::VirtualCamera;
 use super::i18n;
-use crate::{platform, resources};
+use crate::{platform, portable, resources};
 
 const DEVICE_POLL: Duration = Duration::from_millis(1500);
 /// After this long without zoom messages, the zoom the phone reported is trusted over the
@@ -54,6 +54,10 @@ pub struct Snapshot {
     pub problem: Option<String>,
     /// One-off information, e.g. a lens that was hidden.
     pub notice: Option<Notice>,
+    /// Running from a portable folder rather than installed.
+    pub portable: bool,
+    /// Portable only: "Plugcam Camera" still has to be added to Windows (needs admin once).
+    pub camera_missing: bool,
     pub mica: bool,
     /// The UI language in use: the setting, else the one matching Windows.
     pub language: String,
@@ -126,6 +130,7 @@ struct State {
     zoom_sent: Option<(i32, Instant)>,
     zoom_range: Option<(f32, f32)>,
     problem: Option<String>,
+    camera_missing: bool,
     notice: Option<Notice>,
     last_sent: Option<Snapshot>,
 }
@@ -149,11 +154,12 @@ impl Controller {
         let settings = Settings::load(&settings_path);
         let adb = Adb::locate().map_err(|e| log::error!("{e}")).ok();
         let server_file = server::server_file().map_err(|e| e.to_string());
+        let registered = platform::vcam_registered_path().is_some();
         let problem = if adb.is_none() {
             Some("adb.exe not found".to_string())
         } else if let Err(e) = &server_file {
             Some(e.clone())
-        } else if platform::vcam_registered_path().is_none() {
+        } else if !registered && !portable::is_portable() {
             Some("Plugcam Camera is not installed (camera DLL not registered)".to_string())
         } else {
             None
@@ -180,6 +186,7 @@ impl Controller {
                 zoom_sent: None,
                 zoom_range: None,
                 problem,
+                camera_missing: !registered && portable::is_portable(),
                 notice: None,
                 last_sent: None,
             }),
@@ -251,6 +258,8 @@ impl Controller {
             zoom_range: st.zoom_range,
             problem: st.problem.clone(),
             notice: st.notice.clone(),
+            portable: portable::is_portable(),
+            camera_missing: st.camera_missing,
             mica: self.mica,
             language: i18n::resolve(st.settings.language.as_deref(), &self.system_locale).into(),
             system_language: i18n::resolve(None, &self.system_locale).into(),
@@ -272,7 +281,7 @@ impl Controller {
         let _lifecycle = self.lifecycle.lock().unwrap();
         let old = {
             let mut st = self.state.lock().unwrap();
-            if st.camera_on == on || (on && st.problem.is_some()) {
+            if st.camera_on == on || (on && (st.problem.is_some() || st.camera_missing)) {
                 return;
             }
             st.camera_on = on;
@@ -380,6 +389,7 @@ impl Controller {
             camera: params,
             mirror: st.settings.mirror,
             rotation: st.settings.rotation,
+            color: st.settings.color,
             dump: None,
             preview: Some(self.preview.clone()),
             on_zoom: Some(Arc::new(move |z| {
@@ -446,6 +456,7 @@ impl Controller {
         if let Some(p) = &st.pipeline {
             p.set_mirror(new.mirror);
             p.set_rotation(new.rotation);
+            p.set_color(new.color);
         }
         if old.launch_at_login != new.launch_at_login {
             super::set_launch_at_login(&self.app, new.launch_at_login);
@@ -522,6 +533,22 @@ impl Controller {
         let mut st = self.state.lock().unwrap();
         st.vcam = None;
         st.camera_on = false;
+    }
+
+    /// Portable only: adds "Plugcam Camera" to Windows or removes it, after Windows' consent
+    /// prompt. The camera is turned off before removing.
+    pub fn set_camera_registered(&self, on: bool) -> Result<(), String> {
+        if !portable::is_portable() {
+            return Err("the installer manages the camera".into());
+        }
+        if !on {
+            self.set_camera_on(false);
+        }
+        let result = portable::set_camera_registered(on);
+        let mut st = self.state.lock().unwrap();
+        st.camera_missing = platform::vcam_registered_path().is_none();
+        self.publish(&mut st);
+        result
     }
 
     fn save(&self, settings: &Settings) {
