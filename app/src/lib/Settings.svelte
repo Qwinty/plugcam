@@ -53,6 +53,26 @@
     }
   }
 
+  let reportState = $state<"idle" | "saving" | "saved" | "failed">("idle");
+  let reportName = $state("");
+  async function saveReport() {
+    reportState = "saving";
+    try {
+      const path = await api.saveReport();
+      reportName = path.split(/[\\/]/).pop() ?? path;
+      reportState = "saved";
+    } catch {
+      reportState = "failed";
+    }
+  }
+  const reportLine = $derived(
+    reportState === "saved"
+      ? t("set.report.saved", { name: reportName })
+      : reportState === "failed"
+        ? t("set.report.failed")
+        : t("set.report.hint"),
+  );
+
   const s = $derived(snap.settings);
   // The slider only sends its value when released, so dragging does not restart the stream.
   let bitrateDraft = $state<number | null>(null);
@@ -156,6 +176,31 @@
   </section>
 
   <section class="section">
+    <h2>{t("set.diag")}</h2>
+    <div class="card">
+      <Toggle
+        label={t("set.detailedLog")}
+        hint={t("set.detailedLog.hint")}
+        checked={s.detailedLog}
+        onchange={(v) => api.updateSettings({ detailedLog: v })} />
+      <div class="row">
+        <span class="row-text">
+          <span>{t("set.report")}</span>
+          <span class="row-hint" class:accent={reportState === "saved"} class:error={reportState === "failed"}>{reportLine}</span>
+        </span>
+        <button class="btn small" disabled={reportState === "saving"} onclick={saveReport}>
+          {#if reportState === "saving"}<LoaderCircle size={16} class="spin" />{/if}
+          {t("set.report.save")}
+        </button>
+      </div>
+      <button class="row link" onclick={() => api.openLogFolder()}>
+        <span>{t("set.logFolder")}</span>
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  </section>
+
+  <section class="section">
     <h2>{t("set.about")}</h2>
     <div class="card">
       <button class="row link first" onclick={onwhatsnew}>
@@ -236,6 +281,9 @@
   }
   .row-hint.accent {
     color: var(--accent-text);
+  }
+  .row-hint.error {
+    color: var(--error);
   }
   .btn.small {
     flex: none;

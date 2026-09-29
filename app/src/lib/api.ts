@@ -26,6 +26,8 @@ export interface Settings {
   checkUpdates: boolean;
   /** The version whose "What's new" was last shown; `null` on a fresh install. */
   lastSeenVersion: string | null;
+  /** Write a detailed log to a file for bug reports. */
+  detailedLog: boolean;
 }
 
 /** Picture adjustments made on the PC, each from -100 to 100. */
@@ -121,6 +123,9 @@ export const setPreviewActive = (active: boolean) => invoke<void>("set_preview_a
 /** How wide the picture is shown, in physical pixels, so no wider JPEGs are made. */
 export const setPreviewWidth = (width: number) => invoke<void>("set_preview_width", { width });
 export const setCameraRegistered = (on: boolean) => invoke<void>("set_camera_registered", { on });
+/** Saves a bug report to Downloads and opens the new-issue form; returns the file's path. */
+export const saveReport = () => invoke<string>("save_report");
+export const openLogFolder = () => invoke<void>("open_log_folder");
 
 export type UpdatePhase = "idle" | "checking" | "upToDate" | "available" | "downloading" | "installing" | "error";
 

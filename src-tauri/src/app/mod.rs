@@ -2,6 +2,7 @@
 
 mod controller;
 pub mod i18n;
+mod report;
 mod tray;
 mod updates;
 
@@ -32,9 +33,18 @@ pub fn run() {
         .manage(PreviewChannel::default())
         .manage(updates::Updates::default())
         .setup(|app| {
-            let dir = if crate::portable::is_portable() { crate::portable::data_dir() } else { app.path().app_config_dir()? };
+            let portable = crate::portable::is_portable();
+            let dir = if portable { crate::portable::data_dir() } else { app.path().app_config_dir()? };
+            let log_dir = if portable { dir.join("logs") } else { app.path().app_log_dir()? };
             let settings_path = dir.join("settings.json");
             let controller = Controller::new(app.handle().clone(), settings_path);
+            crate::diag::configure(&log_dir, controller.snapshot().settings.detailed_log);
+            log::info!(
+                "Plugcam {} ({}), {}",
+                env!("CARGO_PKG_VERSION"),
+                if portable { "portable" } else { "installed" },
+                crate::platform::windows_name()
+            );
             app.manage(controller.clone());
             tray::create(app.handle(), &controller.snapshot())?;
             start_preview_thread(app.handle().clone(), controller);
@@ -78,6 +88,8 @@ pub fn run() {
             set_preview_width,
             open_url,
             set_camera_registered,
+            save_report,
+            open_log_folder,
             updates::update_state,
             updates::check_for_updates,
             updates::install_update,
@@ -222,4 +234,17 @@ fn open_url(url: String) -> Result<(), String> {
         return Err("only https links".into());
     }
     std::process::Command::new("explorer").arg(&url).spawn().map(drop).map_err(|e| e.to_string())
+}
+
+/// "Save report…": writes the report to Downloads, shows it in Explorer, opens the issue form.
+#[tauri::command]
+async fn save_report(c: Ctl<'_>) -> Result<String, String> {
+    let c = c.inner().clone();
+    let path = tauri::async_runtime::spawn_blocking(move || report::create(&c)).await.map_err(|e| e.to_string())??;
+    Ok(path.display().to_string())
+}
+
+#[tauri::command]
+fn open_log_folder() -> Result<(), String> {
+    report::open_log_folder()
 }

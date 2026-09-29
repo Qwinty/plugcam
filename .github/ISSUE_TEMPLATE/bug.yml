@@ -1,0 +1,51 @@
+name: Bug report
+description: Something doesn't work: the camera, the phone connection, the app itself.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The quickest way to a fix is a report file from Plugcam:
+        **Settings → Diagnostics → Save report**. It saves a `.txt` to Downloads and opens this form
+        with the fields below filled in. If the problem comes back, turn on **Detailed log** first,
+        repeat it, then save the report.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: Where you use the camera
+      description: Zoom, Teams, Discord, OBS, Chrome/Meet, the Windows Camera app…
+  - type: input
+    id: phone
+    attributes:
+      label: Phone
+      description: Model and Android version.
+      placeholder: OnePlus 11R, Android 15
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugcam version
+      placeholder: 0.1.1
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows
+      placeholder: Windows 11 24H2 (build 26100)
+  - type: textarea
+    id: report
+    attributes:
+      label: Report file
+      description: |
+        Drag the `plugcam-report-….txt` from Downloads here. It stays on your PC until you attach it;
+        phone serials and your user folder are already hidden in it.
+      placeholder: Drop the report file here

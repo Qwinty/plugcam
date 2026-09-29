@@ -150,7 +150,7 @@ Non, Plugcam a besoin d’un téléphone Android et de Windows. Sous Linux, scrc
 
 ### Quels téléphones Android sont compatibles avec Plugcam ?
 
-Plugcam nécessite Android 12 ou plus récent, car scrcpy ne peut capturer la caméra qu’à partir d’Android 12. Il a été développé et testé avec un OnePlus 11R (Android 15) et Chrome ; les autres téléphones devraient fonctionner de la même façon. Certains téléphones listent des objectifs qu’ils ne diffusent pas aux applis tierces ; Plugcam s’en aperçoit, masque l’objectif et passe à la caméra principale. Si votre téléphone ou votre appli ne fonctionne pas, [ouvrez une issue](https://github.com/Qwinty/plugcam/issues) en indiquant le modèle du téléphone et l’appli.
+Plugcam nécessite Android 12 ou plus récent, car scrcpy ne peut capturer la caméra qu’à partir d’Android 12. Il a été développé et testé avec un OnePlus 11R (Android 15) et Chrome ; les autres téléphones devraient fonctionner de la même façon. Certains téléphones listent des objectifs qu’ils ne diffusent pas aux applis tierces ; Plugcam s’en aperçoit, masque l’objectif et passe à la caméra principale. Si votre téléphone ou votre appli ne fonctionne pas, [ouvrez une issue](https://github.com/Qwinty/plugcam/issues) en indiquant le modèle du téléphone et l’appli. Dans Plugcam, **Paramètres → Diagnostic → Enregistrer le rapport** crée un fichier à y joindre.
 
 Fonctionnement, compilation et licences : voir le [README en anglais](../../README.md).
 

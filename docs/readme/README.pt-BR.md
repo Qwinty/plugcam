@@ -150,7 +150,7 @@ Não, o Plugcam precisa de um celular Android e do Windows. No Linux, o próprio
 
 ### Quais celulares Android funcionam com o Plugcam?
 
-O Plugcam precisa de Android 12 ou mais novo, porque o scrcpy só consegue capturar a câmera a partir do Android 12. Ele foi feito e testado com um OnePlus 11R (Android 15) e o Chrome; outros celulares devem funcionar do mesmo jeito. Alguns celulares listam lentes que não transmitem para apps de terceiros; o Plugcam percebe, oculta a lente e troca para a câmera principal. Se o seu celular ou app não funcionar, [abra uma issue](https://github.com/Qwinty/plugcam/issues) com o modelo do celular e o app.
+O Plugcam precisa de Android 12 ou mais novo, porque o scrcpy só consegue capturar a câmera a partir do Android 12. Ele foi feito e testado com um OnePlus 11R (Android 15) e o Chrome; outros celulares devem funcionar do mesmo jeito. Alguns celulares listam lentes que não transmitem para apps de terceiros; o Plugcam percebe, oculta a lente e troca para a câmera principal. Se o seu celular ou app não funcionar, [abra uma issue](https://github.com/Qwinty/plugcam/issues) com o modelo do celular e o app. No Plugcam, **Configurações → Diagnóstico → Salvar relatório** cria um arquivo para anexar.
 
 Como funciona, como compilar e licenças: veja o [README em inglês](../../README.md).
 
