@@ -74,13 +74,6 @@
   );
 
   const s = $derived(snap.settings);
-  const sizes = [
-    [1280, 720],
-    [1920, 1080],
-    [2560, 1440],
-    [3840, 2160],
-  ] as const;
-
   // The slider only sends its value when released, so dragging does not restart the stream.
   let bitrateDraft = $state<number | null>(null);
   const bitrate = $derived(bitrateDraft ?? s.bitrateMbps ?? 12);
@@ -110,23 +103,6 @@
   </section>
 
   <section class="section">
-    <h2>{t("set.vcam")}</h2>
-    <div class="card">
-      <div class="row stacked">
-        <span class="row-text"><span>{t("set.resolution")}</span><span class="row-hint">{t("set.resolution.hint")}</span></span>
-        <Select
-          label={t("set.resolution")}
-          value={`${s.vcamWidth}x${s.vcamHeight}`}
-          onchange={(v) => {
-            const [w, h] = v.split("x").map(Number);
-            api.updateSettings({ vcamWidth: w, vcamHeight: h });
-          }}
-          options={sizes.map(([w, h]) => ({ value: `${w}x${h}`, label: `${w} × ${h}` }))} />
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
     <h2>{t("set.video")}</h2>
     <div class="card">
       <Toggle
@@ -150,6 +126,13 @@
             }} />
           <span class="value">{t("set.mbps", { v: bitrate })}</span>
         </div>
+      {/if}
+      {#if snap.highSpeedOffered || s.allowHighSpeed}
+        <Toggle
+          label={t("set.highSpeed")}
+          hint={t("set.highSpeed.hint")}
+          checked={s.allowHighSpeed}
+          onchange={(v) => api.updateSettings({ allowHighSpeed: v })} />
       {/if}
     </div>
   </section>
@@ -260,12 +243,6 @@
     font-size: 20px;
     font-weight: 600;
     line-height: 1.2;
-  }
-  .row.stacked {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 12px;
   }
   .slider {
     padding-inline-end: 12px;

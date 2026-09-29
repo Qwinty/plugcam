@@ -18,10 +18,10 @@ use tauri::{AppHandle, Emitter};
 use crate::adb::{Adb, Device};
 use crate::pipeline::{Pipeline, PipelineConfig, Status};
 use crate::preview::PreviewSlot;
-use crate::scrcpy::cameras::{self, CameraInfo, Quality};
+use crate::scrcpy::cameras::{self, CameraInfo, CaptureMode, FpsOption};
 use crate::scrcpy::protocol::ControlMessage;
 use crate::scrcpy::{server, zoom};
-use crate::settings::Settings;
+use crate::settings::{Settings, VCAM_SIZES};
 use crate::vcam::VirtualCamera;
 use super::i18n;
 use crate::{platform, portable, resources};
@@ -43,7 +43,15 @@ pub struct Snapshot {
     pub cameras: Vec<CameraView>,
     /// The lens that is (or would be) used, if the phone's list is known.
     pub selected_camera: Option<String>,
-    pub smooth_available: bool,
+    /// Resolutions the lens captures as they are (all of them while its list is unknown).
+    pub resolutions: Vec<(u32, u32)>,
+    /// Frame rates offered at the chosen resolution.
+    pub fps_options: Vec<FpsOption>,
+    /// What the phone is asked for with the current settings, once its lens list is known.
+    pub capture: Option<CaptureMode>,
+    /// At the chosen resolution, 60 fps on this lens comes only from a high-speed session,
+    /// behind a setting.
+    pub high_speed_offered: bool,
     pub torch: bool,
     pub fps: f32,
     /// Camera zoom as the phone last reported it.
@@ -291,12 +299,19 @@ impl Controller {
             wifi: d.is_wifi(),
             state: d.state.clone(),
         });
-        let model = device.as_ref().map(|d| d.model.clone()).unwrap_or_default();
-        let phone = device.as_ref().and_then(|d| st.phones.get(&d.serial));
-        let usable: Vec<&CameraInfo> = phone
-            .map(|p| p.cameras.iter().filter(|c| !st.settings.is_broken(&model, &c.id)).collect())
-            .unwrap_or_default();
+        let usable = usable_cameras(st);
         let selected = selected_camera(&st.settings, &usable);
+        let s = &st.settings;
+        let (resolutions, fps_options) = match selected {
+            Some(cam) => (
+                cameras::resolutions(cam, &VCAM_SIZES),
+                cameras::fps_options(cam, (s.vcam_width, s.vcam_height), s.allow_high_speed),
+            ),
+            None => (
+                VCAM_SIZES.to_vec(),
+                [30, 60].map(|fps| FpsOption { value: fps, fps, high_speed: false }).to_vec(),
+            ),
+        };
         Snapshot {
             settings: st.settings.clone(),
             camera_on: st.camera_on,
@@ -313,7 +328,10 @@ impl Controller {
                 })
                 .collect(),
             selected_camera: selected.map(|c| c.id.clone()),
-            smooth_available: selected.is_some_and(|c| cameras::capture_mode(c, Quality::Smooth).is_some()),
+            resolutions,
+            fps_options,
+            capture: selected.and_then(|c| capture_mode(s, c)),
+            high_speed_offered: selected.is_some_and(|c| cameras::sixty_needs_high_speed(c, (s.vcam_width, s.vcam_height))),
             torch: st.torch,
             fps: st.fps,
             zoom: st.zoom,
@@ -409,27 +427,16 @@ impl Controller {
         }
 
         let mut params = st.settings.camera_params();
-        let device = active_device(&st.devices).cloned();
-        let model = device.as_ref().and_then(|d| d.model.clone()).unwrap_or_default();
-        let phone = device.as_ref().and_then(|d| st.phones.get(&d.serial));
-        let usable: Vec<&CameraInfo> = phone
-            .map(|p| p.cameras.iter().filter(|c| !st.settings.is_broken(&model, &c.id)).collect())
-            .unwrap_or_default();
+        let usable = usable_cameras(st);
         let selected = selected_camera(&st.settings, &usable);
         let zoom_range = selected.and_then(|c| c.zoom);
-        let mode = match selected {
-            Some(cam) => {
-                params.camera_id = Some(cam.id.clone());
-                cameras::capture_mode(cam, st.settings.quality)
-                    .or_else(|| cameras::capture_mode(cam, Quality::Standard))
-            }
-            None => None, // list not known yet: let the server pick by facing
-        };
-        match mode {
+        // Without the lens list the server picks the lens by facing, at a size every phone has.
+        params.camera_id = selected.map(|c| c.id.clone());
+        match selected.and_then(|c| capture_mode(&st.settings, c)) {
             Some(m) => (params.size, params.fps, params.high_speed) = (Some(m.size), m.fps, m.high_speed),
             None => {
-                let (w, h) = if st.settings.quality == Quality::Economy { (1280, 720) } else { (1920, 1080) };
-                (params.size, params.fps) = (Some((w, h)), 30);
+                let size = if st.settings.vcam_height <= 720 { (1280, 720) } else { (1920, 1080) };
+                (params.size, params.fps) = (Some(size), 30);
             }
         }
         if st.running_camera != params.camera_id {
@@ -526,9 +533,11 @@ impl Controller {
         if old.detailed_log != new.detailed_log {
             crate::diag::set_detailed(new.detailed_log);
         }
+        let usable = usable_cameras(&st);
+        let mode = |s: &Settings| selected_camera(s, &usable).and_then(|c| capture_mode(s, c));
         let needs_restart = old.facing != new.facing
             || old.camera_id != new.camera_id
-            || old.quality != new.quality
+            || mode(&old) != mode(&new)
             || old.bitrate() != new.bitrate()
             || (old.vcam_width, old.vcam_height) != (new.vcam_width, new.vcam_height);
         st.notice = None;
@@ -691,6 +700,21 @@ impl Controller {
 fn active_device(devices: &[Device]) -> Option<&Device> {
     let ready: Vec<&Device> = devices.iter().filter(|d| d.is_ready()).collect();
     ready.iter().find(|d| !d.is_wifi()).or(ready.first()).copied().or(devices.first())
+}
+
+/// Lenses of the active phone, without the ones that turned out broken.
+fn usable_cameras(st: &State) -> Vec<&CameraInfo> {
+    let Some(device) = active_device(&st.devices) else { return Vec::new() };
+    let model = device.model.as_deref().unwrap_or_default();
+    st.phones
+        .get(&device.serial)
+        .map(|p| p.cameras.iter().filter(|c| !st.settings.is_broken(model, &c.id)).collect())
+        .unwrap_or_default()
+}
+
+fn capture_mode(settings: &Settings, cam: &CameraInfo) -> Option<CaptureMode> {
+    let size = (settings.vcam_width, settings.vcam_height);
+    cameras::capture_mode(cam, size, settings.fps, settings.allow_high_speed)
 }
 
 fn selected_camera<'a>(settings: &Settings, usable: &[&'a CameraInfo]) -> Option<&'a CameraInfo> {
