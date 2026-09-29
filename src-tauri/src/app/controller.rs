@@ -6,8 +6,9 @@
 //! overlap: otherwise a second start could try to create the camera while the first pipeline
 //! still owns it.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -15,7 +16,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-use crate::adb::{Adb, Device};
+use crate::adb::{self, Adb, Device, MdnsKind};
 use crate::pipeline::{Pipeline, PipelineConfig, Status};
 use crate::preview::PreviewSlot;
 use crate::scrcpy::cameras::{self, CameraInfo, Quality};
@@ -23,6 +24,7 @@ use crate::scrcpy::protocol::ControlMessage;
 use crate::scrcpy::{server, zoom};
 use crate::settings::Settings;
 use crate::vcam::VirtualCamera;
+use crate::wifi::{self, QrPairing};
 use super::i18n;
 use crate::{platform, portable, resources};
 
@@ -30,6 +32,16 @@ const DEVICE_POLL: Duration = Duration::from_millis(1500);
 /// After this long without zoom messages, the zoom the phone reported is trusted over the
 /// steps counted here (a message sent before the camera was ready is dropped by the server).
 const ZOOM_RESYNC: Duration = Duration::from_secs(1);
+/// How often remembered Wi-Fi phones that are not connected are looked for.
+const AUTO_CONNECT_PERIOD: Duration = Duration::from_secs(10);
+/// How long the QR code waits for the phone to scan it.
+const QR_WAIT: Duration = Duration::from_secs(180);
+/// After pairing, how long to wait for the phone to show up for connecting.
+const PAIRED_CONNECT_WAIT: Duration = Duration::from_secs(15);
+/// `adb pair` per address tried; the key exchange can take a few seconds on a slow network.
+const PAIR_TIMEOUT: Duration = Duration::from_secs(10);
+/// Our QR codes announce themselves as `plugcam-…` while pairing; phones as `adb-…`.
+const QR_NAME_PREFIX: &str = "plugcam-";
 
 /// What the window needs to draw itself. Sent whole on every change (it is small).
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -46,6 +58,12 @@ pub struct Snapshot {
     pub smooth_available: bool,
     pub torch: bool,
     pub fps: f32,
+    /// Bit rate the phone streams at, in bits per second; 0 when not streaming.
+    pub bitrate: u32,
+    /// Every phone adb lists, to pick one from.
+    pub devices: Vec<DeviceView>,
+    /// Phones remembered for Wi-Fi and whether each is connected now.
+    pub wifi_phones: Vec<WifiPhoneView>,
     /// Camera zoom as the phone last reported it.
     pub zoom: f32,
     /// Zoom range of the running lens, when known.
@@ -80,6 +98,17 @@ pub struct DeviceView {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct WifiPhoneView {
+    pub id: String,
+    pub name: Option<String>,
+    /// The serial it is connected under, when it is connected.
+    pub serial: Option<String>,
+    /// Switched over from the cable (`adb tcpip`): not encrypted, gone after the phone restarts.
+    pub plain: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct CameraView {
     pub id: String,
     pub facing: String,
@@ -100,6 +129,8 @@ pub enum Notice {
 enum Event {
     Status(Status),
     Zoom(f32),
+    /// A Wi-Fi phone came back under another serial.
+    Serial { old: String, new: String },
 }
 
 /// Per-phone facts fetched once per connection.
@@ -124,6 +155,11 @@ struct State {
     fetching: Vec<String>,
     torch: bool,
     fps: f32,
+    bitrate: u32,
+    /// Remembered Wi-Fi phone ids of connected `ip:port` serials (mDNS serials carry theirs).
+    wifi_ids: HashMap<String, String>,
+    last_auto_connect: Option<Instant>,
+    auto_connecting: bool,
     /// Reported by the phone; also passed to the next pipeline so a restart keeps it.
     zoom: f32,
     /// The step counted after the last zoom messages, and when they were sent.
@@ -144,6 +180,16 @@ pub struct Controller {
     server_file: Result<PathBuf, String>,
     settings_path: PathBuf,
     status_tx: Sender<(u64, Event)>,
+    /// The QR code on screen, tagged so a wait for an older one gives up.
+    qr: Mutex<Option<(u64, QrPairing)>>,
+    qr_counter: AtomicU64,
+    /// Wi-Fi phones the user forgot: neither shown as the active phone nor picked or reconnected
+    /// by pipelines. Not in `state`, since pipelines read it (see the locking rule); taken after
+    /// `state` when both are needed.
+    forgotten: Arc<Mutex<Forgotten>>,
+    /// The last phone paired in this session: its mDNS name (when adb gave it) and the Wi-Fi IP
+    /// it was paired at. Used when the address the phone shows does not work (a VPN on it).
+    paired: Mutex<Option<(Option<String>, String)>>,
     mica: bool,
     /// Windows locale, e.g. `ru-RU`.
     system_locale: String,
@@ -152,6 +198,7 @@ pub struct Controller {
 impl Controller {
     pub fn new(app: AppHandle, settings_path: PathBuf) -> Arc<Self> {
         let settings = Settings::load(&settings_path);
+        let forgotten = Forgotten { ids: settings.forgotten_wifi.iter().cloned().collect(), serials: HashSet::new() };
         let adb = Adb::locate().map_err(|e| log::error!("{e}")).ok();
         let server_file = server::server_file().map_err(|e| e.to_string());
         let registered = platform::vcam_registered_path().is_some();
@@ -182,6 +229,10 @@ impl Controller {
                 fetching: Vec::new(),
                 torch: false,
                 fps: 0.0,
+                bitrate: 0,
+                wifi_ids: HashMap::new(),
+                last_auto_connect: None,
+                auto_connecting: false,
                 zoom: 1.0,
                 zoom_sent: None,
                 zoom_range: None,
@@ -195,6 +246,10 @@ impl Controller {
             server_file,
             settings_path,
             status_tx,
+            qr: Mutex::new(None),
+            qr_counter: AtomicU64::new(0),
+            forgotten: Arc::new(Mutex::new(forgotten)),
+            paired: Mutex::new(None),
             mica: platform::windows_build() >= 22000,
             system_locale: sys_locale::get_locale().unwrap_or_default(),
         });
@@ -207,6 +262,7 @@ impl Controller {
                     match event {
                         Event::Status(status) => c.on_pipeline_status(generation, status),
                         Event::Zoom(z) => c.on_zoom(generation, z),
+                        Event::Serial { old, new } => c.on_serial_change(&old, &new),
                     }
                 }
             })
@@ -222,13 +278,14 @@ impl Controller {
     }
 
     fn build_snapshot(&self, st: &State) -> Snapshot {
-        let device = active_device(&st.devices).map(|d| DeviceView {
+        let view = |d: &Device| DeviceView {
             serial: d.serial.clone(),
             model: d.model.clone().unwrap_or_else(|| d.serial.clone()),
             name: st.phones.get(&d.serial).and_then(|p| p.name.clone()),
             wifi: d.is_wifi(),
             state: d.state.clone(),
-        });
+        };
+        let device = st.active(&self.forgotten.lock().unwrap()).map(view);
         let model = device.as_ref().map(|d| d.model.clone()).unwrap_or_default();
         let phone = device.as_ref().and_then(|d| st.phones.get(&d.serial));
         let usable: Vec<&CameraInfo> = phone
@@ -254,6 +311,19 @@ impl Controller {
             smooth_available: selected.is_some_and(|c| cameras::capture_mode(c, Quality::Smooth).is_some()),
             torch: st.torch,
             fps: st.fps,
+            bitrate: st.bitrate,
+            devices: st.devices.iter().map(view).collect(),
+            wifi_phones: st
+                .settings
+                .wifi_phones
+                .iter()
+                .map(|p| WifiPhoneView {
+                    id: p.id.clone(),
+                    name: p.name.clone(),
+                    serial: connected_serial(st, &p.id),
+                    plain: is_plain(&p.id),
+                })
+                .collect(),
             zoom: st.zoom,
             zoom_range: st.zoom_range,
             problem: st.problem.clone(),
@@ -347,7 +417,7 @@ impl Controller {
         }
 
         let mut params = st.settings.camera_params();
-        let device = active_device(&st.devices).cloned();
+        let device = st.active(&self.forgotten.lock().unwrap()).cloned();
         let model = device.as_ref().and_then(|d| d.model.clone()).unwrap_or_default();
         let phone = device.as_ref().and_then(|d| st.phones.get(&d.serial));
         let usable: Vec<&CameraInfo> = phone
@@ -382,10 +452,12 @@ impl Controller {
         let generation = st.generation;
         let tx = self.status_tx.clone();
         let zoom_tx = self.status_tx.clone();
+        let serial_tx = self.status_tx.clone();
+        let forgotten = self.forgotten.clone();
         let config = PipelineConfig {
             adb,
             server_file,
-            serial: None,
+            serial: st.picked_serial(),
             camera: params,
             mirror: st.settings.mirror,
             rotation: st.settings.rotation,
@@ -395,6 +467,10 @@ impl Controller {
             on_zoom: Some(Arc::new(move |z| {
                 let _ = zoom_tx.send((generation, Event::Zoom(z)));
             })),
+            on_serial: Some(Arc::new(move |old, new| {
+                let _ = serial_tx.send((generation, Event::Serial { old: old.into(), new: new.into() }));
+            })),
+            wanted: Some(Arc::new(move |serial| !forgotten.lock().unwrap().contains(serial))),
         };
         let vcam = st.vcam.take().expect("vcam created above");
         st.status = Some(Status::WaitingForDevice);
@@ -426,9 +502,30 @@ impl Controller {
         }
         if !matches!(status, Status::Streaming { .. }) {
             st.fps = 0.0;
+            st.bitrate = 0;
         }
         st.status = Some(status);
         self.publish(&mut st);
+    }
+
+    /// Keeps a phone's Wi-Fi id when a pipeline got it back under a new serial, so the picked
+    /// phone (stored by id) still resolves to it in the window and in the running pipeline.
+    fn on_serial_change(&self, old: &str, new: &str) {
+        let mut st = self.state.lock().unwrap();
+        let id = st.wifi_ids.remove(old).or_else(|| wifi::mdns_name(old).map(str::to_string));
+        if let Some(id) = id {
+            st.wifi_ids.insert(new.to_string(), id);
+        }
+        self.follow_picked(&st);
+        self.publish(&mut st);
+    }
+
+    /// Points the running pipeline at the picked phone's current serial once it is connected;
+    /// its address may have changed since the pipeline started.
+    fn follow_picked(&self, st: &State) {
+        if let (Some(p), Some(serial)) = (&st.pipeline, st.picked_ready()) {
+            p.set_preferred(Some(serial));
+        }
     }
 
     fn on_zoom(&self, generation: u64, z: f32) {
@@ -568,10 +665,16 @@ impl Controller {
         loop {
             let devices = adb.devices().unwrap_or_default();
             let mut st = self.state.lock().unwrap();
-            let was_ready = active_device(&st.devices).is_some_and(Device::is_ready);
+            let was_ready = st.active(&self.forgotten.lock().unwrap()).is_some_and(Device::is_ready);
             st.phones.retain(|serial, _| devices.iter().any(|d| &d.serial == serial && d.is_ready()));
+            // Kept while the phone is off the network, so it is known again when it comes back.
+            let State { wifi_ids, settings, .. } = &mut *st;
+            wifi_ids.retain(|_, id| settings.wifi_phones.iter().any(|p| &p.id == id));
             st.devices = devices;
-            let now_ready = active_device(&st.devices).filter(|d| d.is_ready()).cloned();
+            let now_ready = st.active(&self.forgotten.lock().unwrap()).filter(|d| d.is_ready()).cloned();
+            self.follow_picked(&st);
+            self.name_wifi_phones(&mut st);
+            self.auto_connect(&mut st, &adb);
 
             if let Some(d) = &now_ready {
                 if !st.phones.contains_key(&d.serial) && !st.fetching.contains(&d.serial) {
@@ -581,7 +684,9 @@ impl Controller {
                 }
             }
             if let Some(p) = st.pipeline.as_ref() {
-                st.fps = if matches!(st.status, Some(Status::Streaming { .. })) { p.stats().fps } else { 0.0 };
+                let stats = p.stats();
+                let streaming = matches!(st.status, Some(Status::Streaming { .. }));
+                (st.fps, st.bitrate) = if streaming { (stats.fps, stats.bitrate) } else { (0.0, 0) };
             }
             let auto_start = !was_ready && now_ready.is_some() && st.settings.auto_start_camera && !st.camera_on;
             self.publish(&mut st);
@@ -590,6 +695,367 @@ impl Controller {
                 self.set_camera_on(true);
             }
             std::thread::sleep(DEVICE_POLL);
+        }
+    }
+
+    /// Keeps the names of remembered Wi-Fi phones up to date once they are fetched.
+    fn name_wifi_phones(&self, st: &mut State) {
+        let mut changed = false;
+        for d in st.devices.iter().filter(|d| d.is_ready()) {
+            let (Some(id), Some(name)) = (wifi_id_of(st, d), st.phones.get(&d.serial).and_then(|p| p.name.clone())) else {
+                continue;
+            };
+            if let Some(p) = st.settings.wifi_phones.iter_mut().find(|p| p.id == id && p.name.as_ref() != Some(&name)) {
+                p.name = Some(name);
+                changed = true;
+            }
+        }
+        if changed {
+            self.save(&st.settings);
+        }
+    }
+
+    /// Now and then, connects remembered Wi-Fi phones that are on the network but not connected.
+    /// Paired phones are found by their mDNS name, so a new address does not matter.
+    fn auto_connect(self: &Arc<Self>, st: &mut State, adb: &Adb) {
+        if st.auto_connecting || st.last_auto_connect.is_some_and(|t| t.elapsed() < AUTO_CONNECT_PERIOD) {
+            return;
+        }
+        let missing: Vec<String> =
+            st.settings.wifi_phones.iter().filter(|p| connected_serial(st, &p.id).is_none()).map(|p| p.id.clone()).collect();
+        st.last_auto_connect = Some(Instant::now());
+        if missing.is_empty() {
+            return;
+        }
+        st.auto_connecting = true;
+        let (c, adb) = (self.clone(), adb.clone());
+        std::thread::spawn(move || {
+            let connected: Vec<(String, String)> =
+                missing.into_iter().filter_map(|id| connect_known(&adb, &id).map(|serial| (serial, id))).collect();
+            let mut unwanted = Vec::new();
+            let mut st = c.state.lock().unwrap();
+            for (serial, id) in connected {
+                if st.settings.wifi_phones.iter().any(|p| p.id == id) {
+                    log::info!("connected {id} over Wi-Fi as {serial}");
+                    st.wifi_ids.insert(serial, id);
+                } else {
+                    unwanted.push(serial); // forgotten while it was being connected
+                }
+            }
+            st.auto_connecting = false;
+            st.last_auto_connect = Some(Instant::now());
+            drop(st);
+            for serial in unwanted {
+                let _ = adb.disconnect(&serial);
+            }
+        });
+    }
+
+    fn adb(&self) -> Result<Adb, String> {
+        self.adb.clone().ok_or_else(|| "adb.exe not found".to_string())
+    }
+
+    /// Picks the phone to use (`None`: the first ready one, USB first). A Wi-Fi phone is stored
+    /// by its id, so the choice holds when its address changes.
+    pub fn select_phone(&self, serial: Option<String>) {
+        let restart = {
+            let mut st = self.state.lock().unwrap();
+            let key = serial.as_deref().map(|s| match st.devices.iter().find(|d| d.serial == s) {
+                Some(d) => phone_key(d, &st.wifi_ids),
+                None => wifi::mdns_name(s).unwrap_or(s).to_string(),
+            });
+            if let (Some(key), Some(serial)) = (&key, &serial) {
+                // Picking a forgotten phone that adb connected by itself takes it back.
+                st.settings.forgotten_wifi.retain(|i| i != key);
+                let mut forgotten = self.forgotten.lock().unwrap();
+                forgotten.remove(key);
+                forgotten.remove(serial);
+            }
+            let changed = st.settings.phone != key;
+            st.settings.phone = key;
+            self.save(&st.settings);
+            let target = st.picked_serial();
+            if let Some(p) = &st.pipeline {
+                p.set_preferred(target.clone());
+            }
+            self.publish(&mut st);
+            // A picked phone the pipeline is on already (found automatically) needs no restart;
+            // one it is not on does, even when picked again, so a click brings it back.
+            let on_it = target.is_some() && st.status.as_ref().and_then(status_serial) == target.as_deref();
+            st.camera_on && if target.is_some() { !on_it } else { changed }
+        };
+        if restart {
+            self.restart();
+        }
+    }
+
+    /// A new QR code for pairing; the phone scans it under Wireless debugging → "Pair device
+    /// with QR code". Returns it as SVG.
+    pub fn wifi_qr_start(&self) -> String {
+        let pairing = QrPairing::new();
+        let svg = pairing.svg();
+        let id = self.qr_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        *self.qr.lock().unwrap() = Some((id, pairing));
+        svg
+    }
+
+    pub fn wifi_qr_cancel(&self) {
+        *self.qr.lock().unwrap() = None;
+    }
+
+    /// Waits for the phone to scan the QR code on screen, then pairs and connects. Returns the
+    /// phone's serial. Fails with `cancelled` when the code was closed or replaced.
+    pub fn wifi_qr_wait(&self) -> Result<String, String> {
+        let adb = self.adb()?;
+        let (id, pairing) = self.qr.lock().unwrap().clone().ok_or("cancelled")?;
+        let current = || self.qr.lock().unwrap().as_ref().is_some_and(|(i, _)| *i == id);
+        let until = Instant::now() + QR_WAIT;
+        loop {
+            if !current() {
+                return Err("cancelled".into());
+            }
+            if Instant::now() > until {
+                return Err("qrTimeout".into());
+            }
+            let found = adb
+                .mdns_services()
+                .unwrap_or_default()
+                .into_iter()
+                .find(|s| s.kind == MdnsKind::Pairing && s.name == pairing.name);
+            if let Some(service) = found {
+                let guid = adb.pair(&service.address, &pairing.password).map_err(|e| e.to_string());
+                if current() {
+                    *self.qr.lock().unwrap() = None;
+                }
+                return self.finish_pairing(&adb, guid?, service.ip());
+            }
+            std::thread::sleep(Duration::from_secs(1));
+        }
+    }
+
+    /// Pairs with the six-digit code the phone shows under Wireless debugging → "Pair device with
+    /// pairing code". Without an address the phone is looked up on the network.
+    pub fn wifi_pair_code(&self, code: &str, address: Option<&str>) -> Result<String, String> {
+        let adb = self.adb()?;
+        let code: String = code.chars().filter(char::is_ascii_digit).collect();
+        if code.len() != 6 {
+            return Err("badCode".into());
+        }
+        let address = match address.map(str::trim).filter(|a| !a.is_empty()) {
+            Some(a) => a.to_string(),
+            None => find_pairing_phone(&adb).ok_or("noPairingPhone")?,
+        };
+        let (address, guid) =
+            self.try_addresses(&adb, &address, MdnsKind::Pairing, |a| adb.pair_within(a, &code, PAIR_TIMEOUT))?;
+        let ip = address.rsplit_once(':').map_or(address.as_str(), |(ip, _)| ip).to_string();
+        self.finish_pairing(&adb, guid, &ip)
+    }
+
+    /// After pairing: connects the phone (adb usually does it by itself once the phone announces
+    /// itself on mDNS), remembers it and switches to it.
+    /// Fails with `pairedNotFound:<ip>` when the phone does not announce itself for connecting
+    /// (a VPN on the phone does that): the window then asks for the port at that IP.
+    fn finish_pairing(&self, adb: &Adb, guid: Option<String>, ip: &str) -> Result<String, String> {
+        log::info!("paired with {guid:?} at {ip}");
+        *self.paired.lock().unwrap() = Some((guid.clone(), ip.to_string()));
+        let until = Instant::now() + PAIRED_CONNECT_WAIT;
+        let serial = loop {
+            let devices = adb.devices().unwrap_or_default();
+            let by_mdns = devices.iter().find(|d| d.is_ready() && guid.is_some() && wifi::mdns_name(&d.serial) == guid.as_deref());
+            if let Some(d) = by_mdns {
+                break d.serial.clone();
+            }
+            let service = adb.mdns_services().unwrap_or_default().into_iter().find(|s| {
+                s.kind == MdnsKind::Connect && guid.as_ref().map_or(s.ip() == ip, |g| &s.name == g)
+            });
+            if let Some(s) = service
+                && adb.connect(&s.address).is_ok()
+            {
+                break s.address;
+            }
+            if Instant::now() > until {
+                return Err(format!("pairedNotFound:{ip}"));
+            }
+            std::thread::sleep(Duration::from_secs(1));
+        };
+        let id = guid.unwrap_or_else(|| serial.clone());
+        self.use_wifi_phone(&serial, &id, None);
+        Ok(serial)
+    }
+
+    /// Connects to `ip:port` from the Wireless debugging screen, for networks where phones cannot
+    /// be found by name. The phone must have been paired before.
+    pub fn wifi_connect(&self, address: &str) -> Result<String, String> {
+        let adb = self.adb()?;
+        let address = address.trim();
+        if !address.contains(':') {
+            return Err("badAddress".into());
+        }
+        let (address, ()) =
+            self.try_addresses(&adb, address, MdnsKind::Connect, |a| {
+                // A failed connect can leave an `offline` transport behind (an address that
+                // answers but is not the phone, e.g. the phone's VPN address); drop it.
+                adb.connect_within(a, wifi::QUICK_TIMEOUT).inspect_err(|_| {
+                    let _ = adb.disconnect_within(a, wifi::QUICK_TIMEOUT);
+                })
+            })?;
+        // A paired phone is remembered by its mDNS name when the network lets us see it, or by
+        // the name it was just paired under at this IP (a VPN on the phone hides it from mDNS).
+        let paired_name = self
+            .paired
+            .lock()
+            .unwrap()
+            .clone()
+            .and_then(|(name, ip)| name.filter(|_| address.rsplit_once(':').is_some_and(|(a, _)| a == ip)));
+        let id = adb
+            .mdns_services()
+            .unwrap_or_default()
+            .into_iter()
+            .find(|s| s.kind == MdnsKind::Connect && s.address == address)
+            .map(|s| s.name)
+            .or(paired_name)
+            .unwrap_or_else(|| address.clone());
+        self.use_wifi_phone(&address, &id, None);
+        Ok(address)
+    }
+
+    /// Runs `attempt` (pair or connect) on the address the user typed; if that fails, on the
+    /// same port at other IPs this phone may have (see `other_addresses`). Returns the address
+    /// that worked, or the first error.
+    fn try_addresses<T>(
+        &self,
+        adb: &Adb,
+        address: &str,
+        kind: MdnsKind,
+        attempt: impl Fn(&str) -> Result<T, adb::AdbError>,
+    ) -> Result<(String, T), String> {
+        let first = match attempt(address) {
+            Ok(v) => return Ok((address.to_string(), v)),
+            Err(e) => e.to_string(),
+        };
+        for other in self.other_addresses(adb, address, kind) {
+            log::info!("{address} failed, trying {other}");
+            if let Ok(v) = attempt(&other) {
+                return Ok((other, v));
+            }
+        }
+        Err(first)
+    }
+
+    /// With a VPN on, the phone shows its VPN address, which the PC cannot reach; the port is
+    /// right. IPs worth trying with that port: a phone announcing the same port on the network,
+    /// the IP the last phone was paired at, and the Wi-Fi IP of the phone on the cable when it
+    /// is plausibly the same phone.
+    fn other_addresses(&self, adb: &Adb, address: &str, kind: MdnsKind) -> Vec<String> {
+        let port = address.rsplit_once(':').map(|(_, p)| p).unwrap_or_default();
+        let mut ips: Vec<String> = adb
+            .mdns_services_within(wifi::QUICK_TIMEOUT)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|s| s.kind == kind && s.address.rsplit_once(':').is_some_and(|(_, p)| p == port))
+            .map(|s| s.ip().to_string())
+            .collect();
+        let paired = self.paired.lock().unwrap().clone();
+        if let Some((_, ip)) = &paired {
+            ips.push(ip.clone());
+        }
+        let usb: Vec<String> = {
+            let st = self.state.lock().unwrap();
+            st.devices.iter().filter(|d| d.is_ready() && !d.is_wifi()).map(|d| d.serial.clone()).collect()
+        };
+        let usb: Vec<&str> = usb.iter().map(String::as_str).collect();
+        let guid = paired.as_ref().and_then(|(g, _)| g.as_deref());
+        if let Some(ip) = usb_phone_for(guid, &usb).and_then(|serial| adb.wifi_ip(serial)) {
+            ips.push(ip);
+        }
+        let mut out: Vec<String> = Vec::new();
+        for other in ips.iter().filter_map(|ip| with_ip(address, ip)) {
+            if !out.contains(&other) {
+                out.push(other);
+            }
+        }
+        out
+    }
+
+    /// "From cable to Wi-Fi": moves the phone on the cable to plain TCP adb and connects over the
+    /// network. Not encrypted; lasts until the phone restarts.
+    pub fn wifi_from_cable(&self) -> Result<String, String> {
+        let adb = self.adb()?;
+        let (serial, name) = {
+            let st = self.state.lock().unwrap();
+            let usb = st.devices.iter().filter(|d| d.is_ready() && !d.is_wifi());
+            let chosen = usb.clone().find(|d| st.settings.phone.as_ref() == Some(&d.serial)).or(usb.clone().next());
+            let d = chosen.ok_or("noUsbPhone")?;
+            (d.serial.clone(), st.phones.get(&d.serial).and_then(|p| p.name.clone()))
+        };
+        let address = wifi::switch_from_cable(&adb, &serial).map_err(|e| match e {
+            wifi::SwitchError::NoWifi => "phoneNotOnWifi".to_string(),
+            e => e.to_string(),
+        })?;
+        self.use_wifi_phone(&address, &address, name);
+        Ok(address)
+    }
+
+    /// Remembers a phone just connected over Wi-Fi and makes it the one in use.
+    fn use_wifi_phone(&self, serial: &str, id: &str, name: Option<String>) {
+        let restart = {
+            let mut st = self.state.lock().unwrap();
+            {
+                let mut forgotten = self.forgotten.lock().unwrap();
+                forgotten.remove(serial);
+                forgotten.remove(id);
+                forgotten.remove(&wifi::mdns_serial(id));
+            }
+            st.wifi_ids.insert(serial.to_string(), id.to_string());
+            st.settings.remember_wifi_phone(id, name);
+            st.settings.phone = Some(id.to_string());
+            self.save(&st.settings);
+            if let Some(p) = &st.pipeline {
+                p.set_preferred(Some(serial.to_string()));
+            }
+            self.publish(&mut st);
+            st.camera_on && st.status.as_ref().and_then(status_serial) != Some(serial)
+        };
+        if restart {
+            self.restart();
+        }
+    }
+
+    /// Forgets a Wi-Fi phone and disconnects it. If the camera uses it, it moves to another
+    /// phone. The phone stays paired with this PC; only the phone can remove that.
+    pub fn wifi_forget(&self, id: &str) {
+        let (listed, restart) = {
+            let mut st = self.state.lock().unwrap();
+            // Every serial it may have now or after coming back.
+            let mut serials: HashSet<String> =
+                st.devices.iter().filter(|d| wifi_id_of(&st, d).as_deref() == Some(id)).map(|d| d.serial.clone()).collect();
+            serials.extend(st.wifi_ids.iter().filter(|(_, i)| *i == id).map(|(s, _)| s.clone()));
+            serials.insert(id.to_string());
+            serials.insert(wifi::mdns_serial(id));
+            st.wifi_ids.retain(|_, i| i != id);
+            st.settings.forget_wifi_phone(id);
+            let picked = st.settings.phone.as_ref().is_some_and(|s| serials.contains(s));
+            if picked {
+                st.settings.phone = None;
+            }
+            let in_use = st.status.as_ref().and_then(status_serial).is_some_and(|s| serials.contains(s));
+            let listed: Vec<String> = st.devices.iter().filter(|d| serials.contains(&d.serial)).map(|d| d.serial.clone()).collect();
+            {
+                let mut forgotten = self.forgotten.lock().unwrap();
+                forgotten.ids.insert(id.to_string());
+                forgotten.serials.extend(serials);
+            }
+            self.save(&st.settings);
+            self.publish(&mut st);
+            (listed, st.camera_on && (picked || in_use))
+        };
+        if let Some(adb) = &self.adb {
+            for serial in &listed {
+                let _ = adb.disconnect(serial);
+            }
+        }
+        if restart {
+            self.restart();
         }
     }
 
@@ -613,11 +1079,109 @@ impl Controller {
     }
 }
 
-/// The phone the app works with: first ready one (USB first), else any listed one so the
-/// window can say "allow USB debugging".
-fn active_device(devices: &[Device]) -> Option<&Device> {
-    let ready: Vec<&Device> = devices.iter().filter(|d| d.is_ready()).collect();
-    ready.iter().find(|d| !d.is_wifi()).or(ready.first()).copied().or(devices.first())
+impl State {
+    /// The serial the picked phone has now (see `resolve_phone`).
+    fn picked_serial(&self) -> Option<String> {
+        self.settings.phone.as_deref().map(|p| resolve_phone(&self.devices, &self.wifi_ids, p))
+    }
+
+    /// The picked phone's serial when it is connected and ready.
+    fn picked_ready(&self) -> Option<String> {
+        let phone = self.settings.phone.as_deref()?;
+        find_phone(&self.devices, &self.wifi_ids, phone).map(|d| d.serial.clone())
+    }
+
+    /// The phone the app works with, leaving out forgotten ones.
+    fn active(&self, forgotten: &Forgotten) -> Option<&Device> {
+        active_device(&self.devices, self.picked_serial().as_deref(), |s| !forgotten.contains(s))
+    }
+}
+
+/// Wi-Fi phones the user forgot: by id (saved in the settings) and by the serials they had.
+#[derive(Debug, Default)]
+struct Forgotten {
+    ids: HashSet<String>,
+    serials: HashSet<String>,
+}
+
+impl Forgotten {
+    fn contains(&self, serial: &str) -> bool {
+        self.serials.contains(serial)
+            || self.ids.contains(serial)
+            || wifi::mdns_name(serial).is_some_and(|name| self.ids.contains(name))
+    }
+
+    /// Takes back a phone, by id or serial.
+    fn remove(&mut self, key: &str) {
+        self.ids.remove(key);
+        self.serials.remove(key);
+        if let Some(name) = wifi::mdns_name(key) {
+            self.ids.remove(name);
+        }
+    }
+}
+
+/// The phone the app works with: the picked one if it is ready, else the first ready one (USB
+/// first), else any listed one so the window can say "allow USB debugging". Phones that are not
+/// `wanted` are left out.
+fn active_device<'a>(devices: &'a [Device], preferred: Option<&str>, wanted: impl Fn(&str) -> bool) -> Option<&'a Device> {
+    let usable = || devices.iter().filter(|d| wanted(&d.serial));
+    adb::choose(usable(), preferred).or_else(|| usable().next())
+}
+
+/// The remembered Wi-Fi phone a device is, by its mDNS name or the address we connected to.
+fn wifi_id(d: &Device, wifi_ids: &HashMap<String, String>) -> Option<String> {
+    if !d.is_wifi() {
+        return None;
+    }
+    let id = wifi::mdns_name(&d.serial).map(str::to_string).or_else(|| wifi_ids.get(&d.serial).cloned());
+    Some(id.unwrap_or_else(|| d.serial.clone()))
+}
+
+fn wifi_id_of(st: &State, d: &Device) -> Option<String> {
+    wifi_id(d, &st.wifi_ids)
+}
+
+/// What `settings.phone` stores for a device: a Wi-Fi phone's id, a USB phone's serial.
+fn phone_key(d: &Device, wifi_ids: &HashMap<String, String>) -> String {
+    wifi_id(d, wifi_ids).unwrap_or_else(|| d.serial.clone())
+}
+
+/// The ready device a `settings.phone` value means now. Older settings may hold an mDNS serial
+/// instead of the id.
+fn find_phone<'a>(devices: &'a [Device], wifi_ids: &HashMap<String, String>, phone: &str) -> Option<&'a Device> {
+    // An id saved with adb's " (2)" suffix still means the same phone.
+    let serial = wifi::mdns_serial(phone);
+    let key = wifi::mdns_name(phone).or_else(|| wifi::mdns_name(&serial)).unwrap_or(phone);
+    devices.iter().find(|d| d.is_ready() && (d.serial == phone || wifi_id(d, wifi_ids).as_deref() == Some(key)))
+}
+
+/// The serial a `settings.phone` value has now: the ready device it is, else the serial adb
+/// gives it by itself (an mDNS phone's mDNS serial, or the address or USB serial as it is).
+fn resolve_phone(devices: &[Device], wifi_ids: &HashMap<String, String>, phone: &str) -> String {
+    if let Some(d) = find_phone(devices, wifi_ids, phone) {
+        return d.serial.clone();
+    }
+    if wifi::mdns_name(phone).is_none() && phone.starts_with("adb-") && !phone.contains(':') {
+        wifi::mdns_serial(phone)
+    } else {
+        phone.to_string()
+    }
+}
+
+/// The phone a pipeline status is about.
+fn status_serial(status: &Status) -> Option<&str> {
+    match status {
+        Status::Connecting { serial }
+        | Status::Streaming { serial, .. }
+        | Status::Reconnecting { serial, .. }
+        | Status::NoPicture { serial } => Some(serial),
+        Status::WaitingForDevice | Status::Error { .. } | Status::Stopped => None,
+    }
+}
+
+fn connected_serial(st: &State, id: &str) -> Option<String> {
+    st.devices.iter().find(|d| d.is_ready() && wifi_id_of(st, d).as_deref() == Some(id)).map(|d| d.serial.clone())
 }
 
 fn selected_camera<'a>(settings: &Settings, usable: &[&'a CameraInfo]) -> Option<&'a CameraInfo> {
@@ -628,6 +1192,65 @@ fn selected_camera<'a>(settings: &Settings, usable: &[&'a CameraInfo]) -> Option
         .and_then(|id| usable.iter().filter(of_facing).find(|c| &c.id == id))
         .or_else(|| usable.iter().find(of_facing))
         .copied()
+}
+
+/// Connects a remembered Wi-Fi phone if it is on the network. Returns its serial.
+fn connect_known(adb: &Adb, id: &str) -> Option<String> {
+    let address = if id.contains(':') {
+        id.to_string()
+    } else {
+        let services = adb.mdns_services().ok()?;
+        services.into_iter().find(|s| s.kind == MdnsKind::Connect && s.name == id)?.address
+    };
+    adb.connect(&address).ok().map(|()| address)
+}
+
+/// The address of the phone showing "Pair device with pairing code", if exactly one does.
+fn find_pairing_phone(adb: &Adb) -> Option<String> {
+    let until = Instant::now() + Duration::from_secs(5);
+    loop {
+        let phones: Vec<String> = adb
+            .mdns_services()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|s| s.kind == MdnsKind::Pairing && !s.name.starts_with(QR_NAME_PREFIX))
+            .map(|s| s.address)
+            .collect();
+        if phones.len() == 1 {
+            return phones.into_iter().next();
+        }
+        if Instant::now() > until {
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+}
+
+/// Whether a remembered Wi-Fi phone is on plain TCP adb ("from cable", port 5555) rather than
+/// paired TLS, which is remembered by its mDNS name or by an address on a random port.
+fn is_plain(id: &str) -> bool {
+    !id.starts_with("adb-") && id.rsplit_once(':').is_some_and(|(_, port)| port == wifi::TCPIP_PORT.to_string())
+}
+
+/// `address` with its IP replaced by `ip`, keeping the port; `None` when there is no port or
+/// the IP is the same.
+fn with_ip(address: &str, ip: &str) -> Option<String> {
+    let (host, port) = address.rsplit_once(':')?;
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    let valid = !ip.is_empty() && !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit());
+    (valid && host != ip).then(|| format!("{ip}:{port}"))
+}
+
+/// The phone on the cable that is the one paired over Wi-Fi: the one named in its mDNS name
+/// (`adb-<serial>-…`), or without a name, the only phone on the cable.
+fn usb_phone_for<'a>(mdns_name: Option<&str>, usb: &[&'a str]) -> Option<&'a str> {
+    match mdns_name {
+        Some(name) => {
+            let rest = name.strip_prefix("adb-")?;
+            usb.iter().copied().find(|s| rest.strip_prefix(s).is_some_and(|r| r.starts_with('-')))
+        }
+        None => (usb.len() == 1).then(|| usb[0]),
+    }
 }
 
 /// `OnePlus  PHK110` → `OnePlus PHK110`; drops the model when the marketing name has it.
@@ -651,11 +1274,77 @@ mod tests {
 
     #[test]
     fn active_device_prefers_ready_usb() {
+        let all = |_: &str| true;
         let list = [device("1.2.3.4:5555", "device"), device("abc", "unauthorized"), device("usb1", "device")];
-        assert_eq!(active_device(&list).unwrap().serial, "usb1");
+        assert_eq!(active_device(&list, None, all).unwrap().serial, "usb1");
+        assert_eq!(active_device(&list, Some("1.2.3.4:5555"), all).unwrap().serial, "1.2.3.4:5555");
+        assert_eq!(active_device(&list, Some("gone"), all).unwrap().serial, "usb1");
         let list = [device("abc", "unauthorized")];
-        assert_eq!(active_device(&list).unwrap().serial, "abc");
-        assert!(active_device(&[]).is_none());
+        assert_eq!(active_device(&list, None, all).unwrap().serial, "abc");
+        assert!(active_device(&[], None, all).is_none());
+    }
+
+    #[test]
+    fn forgotten_phones_are_never_active() {
+        let forgotten = Forgotten { ids: ["adb-1-x".to_string()].into(), serials: ["10.0.0.2:4000".to_string()].into() };
+        let wanted = |s: &str| !forgotten.contains(s);
+        let list = [device("adb-1-x._adb-tls-connect._tcp", "device"), device("10.0.0.2:4000", "device")];
+        assert!(active_device(&list, None, wanted).is_none());
+        let list = [device("adb-1-x._adb-tls-connect._tcp", "device"), device("10.0.0.3:5555", "device")];
+        assert_eq!(active_device(&list, Some("adb-1-x._adb-tls-connect._tcp"), wanted).unwrap().serial, "10.0.0.3:5555");
+        let mut forgotten = forgotten;
+        forgotten.remove("adb-1-x._adb-tls-connect._tcp");
+        assert!(!forgotten.contains("adb-1-x._adb-tls-connect._tcp") && forgotten.contains("10.0.0.2:4000"));
+    }
+
+    #[test]
+    fn picked_wifi_phone_follows_its_address() {
+        let mut ids = HashMap::new();
+        let usb = device("usb1", "device");
+        let mdns = device("adb-1-x._adb-tls-connect._tcp", "device");
+        let by_address = device("10.0.0.2:4001", "device");
+        // Stored by id, found under whichever serial it has now.
+        assert_eq!(phone_key(&mdns, &ids), "adb-1-x");
+        assert_eq!(phone_key(&usb, &ids), "usb1");
+        assert_eq!(resolve_phone(&[usb.clone(), mdns.clone()], &ids, "adb-1-x"), mdns.serial);
+        ids.insert(by_address.serial.clone(), "adb-1-x".to_string());
+        assert_eq!(phone_key(&by_address, &ids), "adb-1-x");
+        assert_eq!(resolve_phone(&[usb.clone(), by_address.clone()], &ids, "adb-1-x"), "10.0.0.2:4001");
+        // Older settings stored the mDNS serial.
+        assert_eq!(resolve_phone(std::slice::from_ref(&by_address), &ids, &mdns.serial), "10.0.0.2:4001");
+        // Not connected: the serial adb gives it by itself.
+        let only_usb = std::slice::from_ref(&usb);
+        assert_eq!(resolve_phone(only_usb, &ids, "adb-1-x"), mdns.serial);
+        assert!(find_phone(only_usb, &ids, "adb-1-x").is_none());
+        assert_eq!(resolve_phone(&[], &ids, "10.0.0.9:5555"), "10.0.0.9:5555");
+        assert_eq!(resolve_phone(only_usb, &ids, "usb1"), "usb1");
+        assert!(find_phone(&[device("usb1", "offline")], &ids, "usb1").is_none());
+    }
+
+    #[test]
+    fn only_tcpip_phones_are_plain() {
+        assert!(is_plain("192.168.3.237:5555"));
+        assert!(!is_plain("192.168.3.237:37075"));
+        assert!(!is_plain("adb-834ee2d7-nJE3Xk"));
+    }
+
+    #[test]
+    fn other_ip_same_port() {
+        assert_eq!(with_ip("26.26.26.1:37075", "192.168.3.237").as_deref(), Some("192.168.3.237:37075"));
+        assert_eq!(with_ip("192.168.3.237:37075", "192.168.3.237"), None);
+        assert_eq!(with_ip("26.26.26.1", "192.168.3.237"), None);
+        assert_eq!(with_ip("26.26.26.1:", "192.168.3.237"), None);
+        assert_eq!(with_ip("26.26.26.1:37075", ""), None);
+    }
+
+    #[test]
+    fn cable_phone_is_the_paired_one() {
+        assert_eq!(usb_phone_for(Some("adb-834ee2d7-nJE3Xk"), &["R58N", "834ee2d7"]), Some("834ee2d7"));
+        assert_eq!(usb_phone_for(Some("adb-834ee2d7-nJE3Xk"), &["834ee2"]), None);
+        assert_eq!(usb_phone_for(Some("adb-834ee2d7-nJE3Xk"), &["R58N"]), None);
+        assert_eq!(usb_phone_for(None, &["R58N"]), Some("R58N"));
+        assert_eq!(usb_phone_for(None, &["R58N", "834ee2d7"]), None);
+        assert_eq!(usb_phone_for(None, &[]), None);
     }
 
     #[test]

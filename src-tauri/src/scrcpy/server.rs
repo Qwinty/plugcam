@@ -23,6 +23,7 @@ pub const SERVER_SHA256: &str = "deacb991ed2509715160ffdc7907e47b4160eb30d156621
 const DEVICE_SERVER_PATH: &str = "/data/local/tmp/plugcam-server.jar";
 const DEVICE_LIST_PATH: &str = "/data/local/tmp/plugcam-list.jar";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const LIST_TIMEOUT: Duration = Duration::from_secs(30);
 /// A server left over from a crashed session keeps the camera busy for a moment after it is
 /// killed ("Too many other clients connecting"), see docs/stage0.md.
 const STALE_SERVER_GRACE: Duration = Duration::from_secs(3);
@@ -79,6 +80,9 @@ pub struct CameraParams {
     pub orientation: u16,
     pub torch: bool,
     pub zoom: Option<f32>,
+    /// Seconds between key frames; `None` keeps scrcpy's 10. Over Wi-Fi a short interval lets
+    /// the PC skip ahead to real time quickly after a hiccup.
+    pub key_frame_interval: Option<u32>,
 }
 
 impl Default for CameraParams {
@@ -93,6 +97,7 @@ impl Default for CameraParams {
             orientation: 0,
             torch: false,
             zoom: None,
+            key_frame_interval: None,
         }
     }
 }
@@ -123,6 +128,9 @@ impl CameraParams {
         }
         if let Some(zoom) = self.zoom {
             args.push(format!("camera_zoom={zoom}"));
+        }
+        if let Some(secs) = self.key_frame_interval {
+            args.push(format!("video_codec_options=i-frame-interval={secs}"));
         }
         args
     }
@@ -161,6 +169,13 @@ impl ServerLog {
             hook(z);
         }
         zoom.1 = Some(Box::new(hook));
+    }
+
+    /// The camera itself failed (e.g. `Camera capture failed: frame 0` from a lens that is listed
+    /// but gives no picture), as opposed to the connection being slow.
+    pub fn camera_failed(&self) -> bool {
+        let lines = self.lines.lock().unwrap();
+        lines.iter().any(|l| l.contains("Camera capture failed") || (l.contains("ERROR") && l.contains("amera")))
     }
 
     /// Distinct error and warning lines (at most 3), formatted to be appended to a message.
@@ -290,13 +305,11 @@ pub fn list_cameras(adb: &Adb, serial: &str, server: &Path) -> Result<String, Se
     // Own copy: the server deletes its jar when it exits, which must not hit a streaming session
     // that is starting at the same time.
     adb.push(serial, server, DEVICE_LIST_PATH)?;
-    let out = adb
-        .command(Some(serial))
-        .args(["shell", &format!("CLASSPATH={DEVICE_LIST_PATH}")])
-        .args(["app_process", "/", "com.genymobile.scrcpy.Server", SERVER_VERSION])
-        .args(["log_level=info", "list_cameras=true", "list_camera_sizes=true"])
-        .output()?;
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned() + &String::from_utf8_lossy(&out.stderr))
+    let classpath = format!("CLASSPATH={DEVICE_LIST_PATH}");
+    let args = ["shell", &classpath, "app_process", "/", "com.genymobile.scrcpy.Server", SERVER_VERSION];
+    let args = [&args[..], &["log_level=info", "list_cameras=true", "list_camera_sizes=true"]].concat();
+    let out = adb.output(Some(serial), &args, LIST_TIMEOUT)?;
+    Ok(out.stdout + &out.stderr)
 }
 
 fn kill_stale_servers(adb: &Adb, serial: &str) {
@@ -436,6 +449,7 @@ mod tests {
             orientation: 90,
             torch: true,
             zoom: Some(2.0),
+            key_frame_interval: Some(1),
         };
         assert_eq!(
             p.server_args(),
@@ -449,6 +463,7 @@ mod tests {
                 "capture_orientation=90",
                 "camera_torch=true",
                 "camera_zoom=2",
+                "video_codec_options=i-frame-interval=1",
             ]
         );
     }

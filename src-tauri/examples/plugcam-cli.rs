@@ -154,6 +154,8 @@ fn run(args: Args) -> Result<(), String> {
             dump: args.dump,
             preview: None,
             on_zoom: None,
+            on_serial: None,
+            wanted: None,
         },
         vcam,
         |_| {},

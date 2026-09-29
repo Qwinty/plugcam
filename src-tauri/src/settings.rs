@@ -39,6 +39,42 @@ pub struct Settings {
     pub check_updates: bool,
     /// The version whose "What's new" was last shown; `None` on a fresh install.
     pub last_seen_version: Option<String>,
+    /// The phone picked in the app: a USB phone's serial, or a Wi-Fi phone's id (see
+    /// `WifiPhone::id`), which stays the same when its address changes. `None` = the first
+    /// ready one, USB first.
+    pub phone: Option<String>,
+    /// Phones used over Wi-Fi, connected again whenever they are on the network.
+    #[serde(deserialize_with = "skip_bad_entries")]
+    pub wifi_phones: Vec<WifiPhone>,
+    /// Ids of Wi-Fi phones the user forgot. They stay paired, so adb may connect them by
+    /// itself; the app then leaves them alone until they are picked or added again.
+    #[serde(deserialize_with = "skip_bad_entries")]
+    pub forgotten_wifi: Vec<String>,
+}
+
+/// A list where entries that do not parse are dropped, rather than the whole settings file.
+fn skip_bad_entries<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let items = match value {
+        serde_json::Value::Array(items) => items,
+        _ => Vec::new(),
+    };
+    Ok(items.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect())
+}
+
+/// A phone remembered for Wi-Fi.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WifiPhone {
+    /// Its mDNS name (`adb-<serial>-<id>`) when paired, which survives new addresses; `ip:port`
+    /// when it was switched over from the cable.
+    pub id: String,
+    /// Human name, e.g. `OnePlus PHK110`, once known.
+    pub name: Option<String>,
 }
 
 impl Default for Settings {
@@ -61,6 +97,9 @@ impl Default for Settings {
             broken_cameras: BTreeMap::new(),
             check_updates: true,
             last_seen_version: None,
+            phone: None,
+            wifi_phones: Vec::new(),
+            forgotten_wifi: Vec::new(),
         }
     }
 }
@@ -107,7 +146,28 @@ impl Settings {
         if self.language.as_deref().is_some_and(|l| !crate::app::i18n::SUPPORTED_LANGUAGES.contains(&l)) {
             self.language = None;
         }
+        let mut seen = std::collections::HashSet::new();
+        self.wifi_phones.retain(|p| !p.id.is_empty() && seen.insert(p.id.clone()));
+        let mut seen = std::collections::HashSet::new();
+        self.forgotten_wifi.retain(|id| !id.is_empty() && seen.insert(id.clone()));
         self
+    }
+
+    /// Drops a Wi-Fi phone and remembers not to use it.
+    pub fn forget_wifi_phone(&mut self, id: &str) {
+        self.wifi_phones.retain(|p| p.id != id);
+        if !self.forgotten_wifi.iter().any(|i| i == id) {
+            self.forgotten_wifi.push(id.to_string());
+        }
+    }
+
+    /// Adds a Wi-Fi phone, or refreshes its name if it is known.
+    pub fn remember_wifi_phone(&mut self, id: &str, name: Option<String>) {
+        self.forgotten_wifi.retain(|i| i != id);
+        match self.wifi_phones.iter_mut().find(|p| p.id == id) {
+            Some(p) => p.name = name.or(p.name.take()),
+            None => self.wifi_phones.push(WifiPhone { id: id.to_string(), name }),
+        }
     }
 
     /// Bit rate for the phone's encoder: the user's choice, or one that suits the quality.
@@ -132,6 +192,7 @@ impl Settings {
             orientation: 0, // rotation is done on the PC, see `PipelineConfig::rotation`
             torch: false,
             zoom: None,
+            key_frame_interval: None,
         }
     }
 
@@ -173,9 +234,54 @@ mod tests {
         assert_eq!(s.rotation, 0);
         assert_eq!((s.vcam_width, s.vcam_height), (1920, 1080));
 
+        std::fs::write(&path, r#"{"wifiPhones": [{"id": "a"}, {"id": "a", "name": "x"}, {"id": ""}]}"#).unwrap();
+        assert_eq!(Settings::load(&path).wifi_phones, [WifiPhone { id: "a".into(), name: None }]);
+
+        // A bad entry costs only itself.
+        std::fs::write(
+            &path,
+            r#"{"mirror": true, "wifiPhones": [{"name": "no id"}, "text", {"id": 5}, {"id": "b", "name": 7}, {"id": "c"}]}"#,
+        )
+        .unwrap();
+        let s = Settings::load(&path);
+        assert!(s.mirror);
+        assert_eq!(s.wifi_phones, [WifiPhone { id: "c".into(), name: None }]);
+        std::fs::write(&path, r#"{"mirror": true, "wifiPhones": {"id": "c"}}"#).unwrap();
+        let s = Settings::load(&path);
+        assert!(s.mirror && s.wifi_phones.is_empty());
+
         std::fs::write(&path, "not json").unwrap();
         assert_eq!(Settings::load(&path), Settings::default());
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn remembers_wifi_phones_once() {
+        let mut s = Settings::default();
+        s.remember_wifi_phone("adb-1-x", None);
+        s.remember_wifi_phone("adb-1-x", Some("Pixel 8".into()));
+        s.remember_wifi_phone("adb-1-x", None);
+        s.remember_wifi_phone("10.0.0.2:5555", None);
+        assert_eq!(s.wifi_phones.len(), 2);
+        assert_eq!(s.wifi_phones[0].name.as_deref(), Some("Pixel 8"));
+    }
+
+    #[test]
+    fn forgotten_wifi_phones() {
+        let mut s = Settings::default();
+        s.remember_wifi_phone("adb-1-x", None);
+        s.forget_wifi_phone("adb-1-x");
+        s.forget_wifi_phone("adb-1-x");
+        assert!(s.wifi_phones.is_empty());
+        assert_eq!(s.forgotten_wifi, ["adb-1-x"]);
+        s.remember_wifi_phone("adb-1-x", None);
+        assert!(s.forgotten_wifi.is_empty());
+
+        let s: Settings =
+            serde_json::from_str(r#"{"forgottenWifi": ["adb-1-x", 5, "", "adb-1-x", "10.0.0.2:5555"]}"#).unwrap();
+        assert_eq!(s.sanitized().forgotten_wifi, ["adb-1-x", "10.0.0.2:5555"]);
+        let s: Settings = serde_json::from_str(r#"{"mirror": true, "forgottenWifi": "adb-1-x"}"#).unwrap();
+        assert!(s.mirror && s.forgotten_wifi.is_empty());
     }
 
     #[test]

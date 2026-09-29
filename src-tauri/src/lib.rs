@@ -10,3 +10,4 @@ pub mod resources;
 pub mod scrcpy;
 pub mod settings;
 pub mod vcam;
+pub mod wifi;

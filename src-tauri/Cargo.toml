@@ -19,9 +19,11 @@ path = "src/main.rs"
 [dependencies]
 env_logger = "0.11.11"
 fast_image_resize = "6.1.0"
+getrandom = "0.3.4"
 jpeg-encoder = { version = "0.7.1", features = ["simd"] }
 libloading = "0.8"
 log = "0.4.34"
+qrcode = { version = "0.14.1", default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 sha2 = "0.11.0"

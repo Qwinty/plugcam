@@ -7,12 +7,13 @@
   import Controls from "./lib/Controls.svelte";
   import Preview from "./lib/Preview.svelte";
   import Settings from "./lib/Settings.svelte";
+  import Phones from "./lib/Phones.svelte";
   import Onboarding from "./lib/Onboarding.svelte";
   import UpdateDialog from "./lib/UpdateDialog.svelte";
   import { releasesSince, type Release } from "./lib/releaseNotes";
 
   let snap = $state<Snapshot | null>(null);
-  let screen = $state<"main" | "settings" | "wizard">("main");
+  let screen = $state<"main" | "settings" | "phones" | "wizard">("main");
   let update = $state<UpdateView>({ phase: "idle", version: null, notes: null, progress: null, error: null, portable: false });
   let dialog = $state<{ mode: "update" } | { mode: "whatsNew"; releases: Release[] } | null>(null);
 
@@ -59,7 +60,9 @@
 
   function waitingStage(s: Snapshot) {
     const kind = s.status?.kind;
-    if (s.device?.state === "device" && kind !== "error" && kind !== "noPicture") return { title: t("preview.waiting"), hint: "" };
+    if (s.device?.state === "device" && kind !== "error" && kind !== "noPicture" && kind !== "reconnecting") {
+      return { title: t("preview.waiting"), hint: "" };
+    }
     const info = statusInfo(s);
     return { title: info.title, hint: info.hint };
   }
@@ -89,8 +92,15 @@
               onwizard={() => (screen = "wizard")}
               onupdate={() => (dialog = { mode: "update" })}
               onwhatsnew={showWhatsNew} />
+          {:else if screen === "phones"}
+            <Phones {snap} onback={() => (screen = "main")} />
           {:else}
-            <Controls {snap} {update} onsettings={() => (screen = "settings")} onupdate={() => (dialog = { mode: "update" })} />
+            <Controls
+              {snap}
+              {update}
+              onsettings={() => (screen = "settings")}
+              onphones={() => (screen = "phones")}
+              onupdate={() => (dialog = { mode: "update" })} />
           {/if}
         </aside>
       </main>

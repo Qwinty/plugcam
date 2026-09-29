@@ -18,6 +18,7 @@
     Download,
     ShieldCheck,
     LoaderCircle,
+    ChevronRight,
   } from "@lucide/svelte";
   import * as api from "./api";
   import type { Snapshot, CameraView, Quality, UpdateView } from "./api";
@@ -33,8 +34,9 @@
     snap,
     update,
     onsettings,
+    onphones,
     onupdate,
-  }: { snap: Snapshot; update: UpdateView; onsettings: () => void; onupdate: () => void } = $props();
+  }: { snap: Snapshot; update: UpdateView; onsettings: () => void; onphones: () => void; onupdate: () => void } = $props();
 
   let busy = $state<"starting" | "stopping" | null>(null);
   let adding = $state(false);
@@ -95,17 +97,21 @@
 <div class="panel">
   <header>
     <div class="badge"><Smartphone size={20} /></div>
-    <div class="phone">
-      <div class="name" title={snap.device?.name ?? snap.device?.model ?? "Plugcam"}>
-        {snap.device?.name ?? snap.device?.model ?? "Plugcam"}
-      </div>
-      {#if snap.device}
-        <div class="conn">
-          {#if snap.device.wifi}<Wifi size={14} />{:else}<Usb size={14} />{/if}
-          {t(snap.device.wifi ? "conn.wifi" : "conn.usb")}
-        </div>
-      {/if}
-    </div>
+    <button class="phone" title={t("phones.title")} onclick={onphones}>
+      <span class="phone-text">
+        <span class="name">{snap.device?.name ?? snap.device?.model ?? "Plugcam"}</span>
+        <span class="conn">
+          {#if snap.device}
+            {#if snap.device.wifi}<Wifi size={14} />{:else}<Usb size={14} />{/if}
+            {t(snap.device.wifi ? "conn.wifi" : "conn.usb")}
+            {#if snap.device.wifi && streaming && snap.bitrate > 0}· {t("set.mbps", { v: Math.round(snap.bitrate / 1e5) / 10 })}{/if}
+          {:else}
+            {t("phones.title")}
+          {/if}
+        </span>
+      </span>
+      <ChevronRight size={16} />
+    </button>
     {#if update.version}
       <button class="update-chip" title={t("upd.available.short", { v: update.version })} onclick={onupdate}>
         <Download size={14} />{t("upd.chip")}
@@ -121,6 +127,9 @@
     <div class="status-text">
       <span class="status-title">{info.title}</span>
       {#if info.hint}<span class="status-hint">{info.hint}</span>{/if}
+      {#if !snap.device && !snap.problem}
+        <button class="wifi-link" onclick={onphones}><Wifi size={14} />{t("phones.connectWifi")}</button>
+      {/if}
     </div>
   </div>
 
@@ -291,6 +300,49 @@
   .phone {
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: -4px 0 -4px -6px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    transition-property: background-color;
+    transition-duration: 150ms;
+  }
+  .phone:hover {
+    background: var(--control-hover);
+  }
+  .phone > :global(svg) {
+    color: var(--text-2);
+  }
+  .phone-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .wifi-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    margin-top: 2px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .wifi-link:hover {
+    text-decoration: underline;
   }
   .name {
     font-size: 16px;
