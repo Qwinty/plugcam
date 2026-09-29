@@ -106,6 +106,8 @@ enum Event {
 #[derive(Debug, Clone)]
 struct PhoneInfo {
     name: Option<String>,
+    /// e.g. `15`.
+    android: Option<String>,
     cameras: Vec<CameraInfo>,
 }
 
@@ -219,6 +221,66 @@ impl Controller {
     pub fn snapshot(&self) -> Snapshot {
         let st = self.state.lock().unwrap();
         self.build_snapshot(&st)
+    }
+
+    /// The phone and camera part of a bug report (see `super::report`).
+    pub fn report_facts(&self) -> String {
+        let st = self.state.lock().unwrap();
+        let mut out = String::new();
+        if st.devices.is_empty() {
+            out += "Phone: none connected\n";
+        }
+        for d in &st.devices {
+            let model = d.model.clone().unwrap_or_default();
+            let phone = st.phones.get(&d.serial);
+            out += &format!(
+                "Phone: {} ({model}), Android {}, {}, adb state `{}`\n",
+                phone.and_then(|p| p.name.as_deref()).unwrap_or("?"),
+                phone.and_then(|p| p.android.as_deref()).unwrap_or("?"),
+                if d.is_wifi() { "Wi-Fi" } else { "USB" },
+                d.state,
+            );
+            for c in phone.map(|p| p.cameras.as_slice()).unwrap_or_default() {
+                out += &format!(
+                    "  lens {} {}: {:.0} MP, fps {:?}, zoom {:?}, {} sizes, {} high-speed modes{}\n",
+                    c.id,
+                    c.facing,
+                    c.megapixels(),
+                    c.fps,
+                    c.zoom,
+                    c.sizes.len(),
+                    c.high_speed.len(),
+                    if st.settings.is_broken(&model, &c.id) { ", hidden: sent no picture" } else { "" },
+                );
+            }
+        }
+        out += &format!(
+            "Camera: {}, lens {:?}, status {:?}, {:.1} fps\n",
+            if st.camera_on { "on" } else { "off" },
+            st.running_camera,
+            st.status,
+            st.fps
+        );
+        if let Some(problem) = &st.problem {
+            out += &format!("Problem: {problem}\n");
+        }
+        if let Some(notice) = &st.notice {
+            out += &format!("Notice: {notice:?}\n");
+        }
+        out += &format!("Settings: {}\n", serde_json::to_string_pretty(&st.settings).unwrap_or_default());
+        out
+    }
+
+    /// Phone name and Android version for the new-issue form, when a phone is connected.
+    pub fn phone_summary(&self) -> Option<String> {
+        let st = self.state.lock().unwrap();
+        let d = active_device(&st.devices)?;
+        let phone = st.phones.get(&d.serial);
+        let name = phone.and_then(|p| p.name.clone()).or_else(|| d.model.clone())?;
+        Some(match phone.and_then(|p| p.android.as_deref()) {
+            Some(v) => format!("{name}, Android {v}"),
+            None => name,
+        })
     }
 
     fn build_snapshot(&self, st: &State) -> Snapshot {
@@ -461,6 +523,9 @@ impl Controller {
         if old.launch_at_login != new.launch_at_login {
             super::set_launch_at_login(&self.app, new.launch_at_login);
         }
+        if old.detailed_log != new.detailed_log {
+            crate::diag::set_detailed(new.detailed_log);
+        }
         let needs_restart = old.facing != new.facing
             || old.camera_id != new.camera_id
             || old.quality != new.quality
@@ -567,7 +632,14 @@ impl Controller {
         let Some(adb) = self.adb.clone() else { return };
         loop {
             let devices = adb.devices().unwrap_or_default();
+            for d in &devices {
+                crate::diag::hide_serial(&d.serial);
+            }
             let mut st = self.state.lock().unwrap();
+            if devices != st.devices {
+                let list: Vec<String> = devices.iter().map(|d| format!("{} {}", d.serial, d.state)).collect();
+                log::info!("phones: {}", if list.is_empty() { "none".into() } else { list.join(", ") });
+            }
             let was_ready = active_device(&st.devices).is_some_and(Device::is_ready);
             st.phones.retain(|serial, _| devices.iter().any(|d| &d.serial == serial && d.is_ready()));
             st.devices = devices;
@@ -598,16 +670,17 @@ impl Controller {
             .shell(serial, "echo $(getprop ro.product.manufacturer) $(getprop ro.product.marketname) $(getprop ro.product.model)")
             .ok()
             .map(|s| pretty_name(&s));
+        let android = adb.shell(serial, "getprop ro.build.version.release").ok().map(|s| s.trim().to_string());
         let cameras = match &self.server_file {
             Ok(file) => server::list_cameras(adb, serial, file).map(|out| cameras::parse_camera_list(&out)).unwrap_or_default(),
             Err(_) => Vec::new(),
         };
-        log::info!("{serial}: {name:?}, {} cameras", cameras.len());
+        log::info!("{serial}: {name:?}, Android {}, {} cameras", android.as_deref().unwrap_or("?"), cameras.len());
         let mut st = self.state.lock().unwrap();
         st.fetching.retain(|s| s != serial);
         // An empty list means the camera service is busy (docs/stage2.md); try again later.
         if !cameras.is_empty() {
-            st.phones.insert(serial.to_string(), PhoneInfo { name, cameras });
+            st.phones.insert(serial.to_string(), PhoneInfo { name, android, cameras });
         }
         self.publish(&mut st);
     }

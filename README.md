@@ -218,6 +218,7 @@ It was built and tested with a OnePlus 11R (Android 15) and Chrome; other phones
 same way. Some phones list lenses they won't stream from a third-party app; Plugcam notices, hides that
 lens and switches to the main camera. If your phone or app doesn't work, please
 [open an issue](https://github.com/Qwinty/plugcam/issues) with the phone model and the app.
+In Plugcam, **Settings → Diagnostics → Save report** makes a file to attach to it.
 
 ## How it works
 

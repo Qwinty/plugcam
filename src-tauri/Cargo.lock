@@ -2904,6 +2904,7 @@ version = "0.1.1"
 dependencies = [
  "env_logger",
  "fast_image_resize",
+ "jiff",
  "jpeg-encoder",
  "libloading 0.8.9",
  "log",
