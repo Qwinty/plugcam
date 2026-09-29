@@ -3,21 +3,39 @@
 //! Lines at `info` and up always land in a ring buffer in memory: nothing touches the disk, and
 //! a report still has the recent history to show. The "Detailed log" setting adds Plugcam's own
 //! `debug` lines and writes everything to `plugcam.log` (rotated at 5 MB, one old file kept).
-//! A panic saves the buffer to `last-crash.log`, so a crash leaves a trace with the file off too.
+//! A panic or a native crash (an access violation in Media Foundation, say) saves the buffer to
+//! `last-crash.log`, so a crash leaves a trace with the file off too.
 //! Phone serials and the user's profile folder are hidden before a line is stored anywhere.
 
 use std::collections::VecDeque;
+use std::fmt::Write as _;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::os::windows::ffi::OsStrExt;
+use std::os::windows::io::FromRawHandle;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError, TryLockError};
+use std::time::Duration;
 
 use log::{Level, LevelFilter, Log, Metadata, Record};
+use windows::Win32::Foundation::{GENERIC_WRITE, HMODULE};
+use windows::Win32::Storage::FileSystem::{CREATE_ALWAYS, CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ};
+use windows::Win32::System::Diagnostics::Debug::{
+    EXCEPTION_POINTERS, LPTOP_LEVEL_EXCEPTION_FILTER, SetUnhandledExceptionFilter,
+};
+use windows::Win32::System::LibraryLoader::{
+    GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, GetModuleFileNameW,
+    GetModuleHandleExW,
+};
+use windows::core::PCWSTR;
 
 pub const LOG_FILE: &str = "plugcam.log";
 pub const OLD_LOG_FILE: &str = "plugcam.1.log";
 pub const CRASH_FILE: &str = "last-crash.log";
+/// The bundle identifier in `tauri.conf.json`: Tauri keeps the installed app's logs in
+/// `%LOCALAPPDATA%\<identifier>\logs`.
+const IDENTIFIER: &str = "io.github.plugcam";
 const BUFFER_LINES: usize = 2000;
 const FILE_LIMIT: u64 = 5 * 1024 * 1024;
 /// How much of the log files a report takes, from the end.
@@ -38,6 +56,8 @@ struct State {
     stored: u64,
     in_file: u64,
     dir: Option<PathBuf>,
+    /// `last-crash.log` as null-terminated UTF-16, ready for a crash that must not allocate.
+    crash_wide: Vec<u16>,
     file: Option<File>,
     file_size: u64,
     /// `(text, replacement)` pairs applied to every line.
@@ -45,8 +65,10 @@ struct State {
 }
 
 static LOGGER: OnceLock<Logger> = OnceLock::new();
+static PREVIOUS_FILTER: OnceLock<LPTOP_LEVEL_EXCEPTION_FILTER> = OnceLock::new();
 
-/// Installs the logger and the panic hook. Lines are kept in memory until `configure`.
+/// Installs the logger and the crash handlers. The log folder is known from the start, so a
+/// crash before `configure` is kept too.
 pub fn init() {
     let logger = LOGGER.get_or_init(|| Logger {
         detailed: AtomicBool::new(false),
@@ -60,8 +82,14 @@ pub fn init() {
         return;
     }
     logger.update_max_level();
-    if let Some(home) = std::env::var_os("USERPROFILE") {
-        logger.lock().hide(&home.to_string_lossy(), "%USERPROFILE%");
+    {
+        let mut st = logger.lock();
+        if let Some(home) = std::env::var_os("USERPROFILE") {
+            st.hide(&home.to_string_lossy(), "%USERPROFILE%");
+        }
+        if let Some(dir) = default_dir() {
+            st.set_dir(dir);
+        }
     }
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -69,12 +97,23 @@ pub fn init() {
         on_panic(&format!("panic in thread '{thread}': {info}"));
         previous(info);
     }));
+    // SAFETY: `on_exception` has the signature Windows expects and lives for the whole process.
+    let previous = unsafe { SetUnhandledExceptionFilter(Some(on_exception)) };
+    let _ = PREVIOUS_FILTER.set(previous);
+}
+
+/// Where `app::run` will put the logs: `logs\` next to portable data, or Tauri's log folder.
+fn default_dir() -> Option<PathBuf> {
+    if crate::portable::is_portable() {
+        return Some(crate::portable::data_dir().join("logs"));
+    }
+    std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join(IDENTIFIER).join("logs"))
 }
 
 /// Sets the folder for the log files and turns the file on or off.
 pub fn configure(dir: &Path, detailed: bool) {
     if let Some(logger) = LOGGER.get() {
-        logger.lock().dir = Some(dir.to_path_buf());
+        logger.lock().set_dir(dir.to_path_buf());
         set_detailed(detailed);
     }
 }
@@ -82,23 +121,24 @@ pub fn configure(dir: &Path, detailed: bool) {
 /// The "Detailed log" setting: Plugcam's `debug` lines, and everything written to the file.
 pub fn set_detailed(on: bool) {
     let Some(logger) = LOGGER.get() else { return };
+    let changed = logger.lock().file.is_some() != on;
+    if changed && !on {
+        // Before the file closes, so the file shows where it ends.
+        log::info!("detailed log off");
+    }
     logger.detailed.store(on, Ordering::Relaxed);
     logger.update_max_level();
-    let opened = {
-        let mut st = logger.lock();
-        if st.file.is_some() == on {
-            return;
+    if !changed {
+        return;
+    }
+    if on {
+        let opened = logger.lock().open_file();
+        match opened {
+            Ok(()) => log::info!("detailed log on"),
+            Err(e) => log::warn!("opening the log file: {e}"),
         }
-        if on {
-            st.open_file()
-        } else {
-            st.file = None;
-            Ok(())
-        }
-    };
-    match opened {
-        Ok(()) => log::info!("detailed log {}", if on { "on" } else { "off" }),
-        Err(e) => log::warn!("opening the log file: {e}"),
+    } else {
+        logger.lock().file = None;
     }
 }
 
@@ -132,19 +172,38 @@ pub fn redact(text: &str) -> String {
     }
 }
 
-/// The log for a report: the end of the files with the detailed log on, else the lines in
-/// memory. The flag says which.
-pub fn report_log() -> (String, bool) {
-    let Some(logger) = LOGGER.get() else { return (String::new(), false) };
+/// The logs for a report, each with a title. The log files go in whenever they exist, so a
+/// problem caught with the detailed log on is still there after it is turned off; this session's
+/// lines from memory go in too unless the file is on and already has them.
+pub fn report_logs() -> Vec<(String, String)> {
+    let Some(logger) = LOGGER.get() else { return Vec::new() };
     let st = logger.lock();
-    match (&st.dir, st.file.is_some()) {
-        (Some(dir), true) => {
-            let dir = dir.clone();
-            drop(st);
-            (read_tail(&[dir.join(OLD_LOG_FILE), dir.join(LOG_FILE)], REPORT_LOG_LIMIT), true)
+    let file_on = st.file.is_some();
+    let memory: Option<String> = (!file_on).then(|| st.lines.iter().map(|l| format!("{l}\n")).collect());
+    let dir = st.dir.clone();
+    drop(st);
+
+    let mut logs = Vec::new();
+    if let Some(dir) = dir {
+        let text = read_tail(&[dir.join(OLD_LOG_FILE), dir.join(LOG_FILE)], REPORT_LOG_LIMIT);
+        if !text.is_empty() {
+            let title = if file_on {
+                LOG_FILE.to_string()
+            } else {
+                let written = std::fs::metadata(dir.join(LOG_FILE))
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| jiff::Timestamp::try_from(t).ok())
+                    .map_or_else(|| "?".to_string(), |t| format!("{t:.0}"));
+                format!("{LOG_FILE}, detailed log now off, last written {written}")
+            };
+            logs.push((title, text));
         }
-        _ => (st.lines.iter().map(|l| format!("{l}\n")).collect(), false),
     }
+    if let Some(memory) = memory {
+        logs.push(("this session, from memory".to_string(), memory));
+    }
+    logs
 }
 
 /// `last-crash.log` if there is one.
@@ -154,22 +213,94 @@ pub fn crash_log() -> Option<String> {
 
 fn on_panic(text: &str) {
     let Some(logger) = LOGGER.get() else { return };
-    // The panic may come from inside the logger, with the lock held by this very thread.
-    let mut st = match logger.state.try_lock() {
-        Ok(st) => st,
-        Err(TryLockError::Poisoned(p)) => p.into_inner(),
-        Err(TryLockError::WouldBlock) => return,
-    };
+    let Some(mut st) = logger.lock_for_crash() else { return };
     let now = jiff::Timestamp::now();
     st.store(format!("{now:.3} ERROR {text}"));
-    if let Some(dir) = st.dir.clone() {
-        let mut out = format!("Plugcam {} crashed at {now:.0}\n\n", env!("CARGO_PKG_VERSION"));
-        for line in &st.lines {
-            out.push_str(line);
-            out.push('\n');
+    let header = format!("Plugcam {} crashed at {now:.0}\n\n", env!("CARGO_PKG_VERSION"));
+    st.write_crash(&header);
+}
+
+/// The last word on an exception nothing else handled: an access violation in a system DLL, for
+/// one. The heap may be broken here, so this writes `last-crash.log` without allocating, then
+/// lets Windows go on as it would have (the previous filter, then Windows Error Reporting).
+unsafe extern "system" fn on_exception(info: *const EXCEPTION_POINTERS) -> i32 {
+    // SAFETY: Windows passes valid pointers or null.
+    let record = unsafe { info.as_ref().and_then(|i| i.ExceptionRecord.as_ref()) };
+    if let Some(mut st) = LOGGER.get().and_then(Logger::lock_for_crash) {
+        let mut header = StackText::<512>::new();
+        let _ = writeln!(header, "Plugcam {} crashed at {:.0}", env!("CARGO_PKG_VERSION"), jiff::Timestamp::now());
+        match record {
+            Some(r) => {
+                let _ = write!(header, "native exception {:#010X} at {:p}", r.ExceptionCode.0 as u32, r.ExceptionAddress);
+                let mut module = StackText::<260>::new();
+                if module_name(r.ExceptionAddress, &mut module) {
+                    let _ = write!(header, " in {}", module.as_str());
+                }
+            }
+            None => {
+                let _ = write!(header, "native exception");
+            }
         }
-        let _ = std::fs::create_dir_all(&dir);
-        let _ = std::fs::write(dir.join(CRASH_FILE), out);
+        let _ = header.write_str("\n\n");
+        st.write_crash(header.as_str());
+        if let Some(file) = st.file.as_mut() {
+            let _ = file.write_all(header.as_str().as_bytes());
+        }
+    }
+    match PREVIOUS_FILTER.get().copied().flatten() {
+        // SAFETY: the filter that was installed before ours, called as Windows would have.
+        Some(previous) => unsafe { previous(info) },
+        None => 0, // EXCEPTION_CONTINUE_SEARCH
+    }
+}
+
+/// The file name of the module that holds `address`, e.g. `mfplat.dll`.
+fn module_name(address: *const std::ffi::c_void, out: &mut StackText<260>) -> bool {
+    let mut module = HMODULE::default();
+    let flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+    // SAFETY: with FROM_ADDRESS the name argument is an address, which is only looked up.
+    if unsafe { GetModuleHandleExW(flags, PCWSTR(address.cast()), &mut module) }.is_err() {
+        return false;
+    }
+    let mut path = [0u16; 260];
+    // SAFETY: the buffer is valid for its length.
+    let len = unsafe { GetModuleFileNameW(Some(module), &mut path) } as usize;
+    if len == 0 {
+        return false;
+    }
+    let path = &path[..len.min(path.len())];
+    let name = path.iter().rposition(|&c| c == u16::from(b'\\')).map_or(path, |i| &path[i + 1..]);
+    for c in char::decode_utf16(name.iter().copied()) {
+        let _ = out.write_char(c.unwrap_or(char::REPLACEMENT_CHARACTER));
+    }
+    true
+}
+
+/// Text formatted into a fixed buffer, for code that must not allocate. Too long is cut short.
+struct StackText<const N: usize> {
+    buf: [u8; N],
+    len: usize,
+}
+
+impl<const N: usize> StackText<N> {
+    fn new() -> Self {
+        Self { buf: [0; N], len: 0 }
+    }
+
+    fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.buf[..self.len]).unwrap_or("")
+    }
+}
+
+impl<const N: usize> std::fmt::Write for StackText<N> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        let mut take = s.len().min(N - self.len);
+        while !s.is_char_boundary(take) {
+            take -= 1;
+        }
+        self.buf[self.len..self.len + take].copy_from_slice(&s.as_bytes()[..take]);
+        self.len += take;
+        Ok(())
     }
 }
 
@@ -182,6 +313,19 @@ fn keeps(metadata: &Metadata, detailed: bool) -> bool {
 impl Logger {
     fn lock(&self) -> MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The lock for a crash handler: another thread may be in the middle of a line, so wait a
+    /// little, but give up rather than hang when the crash came from inside the logger itself.
+    fn lock_for_crash(&self) -> Option<MutexGuard<'_, State>> {
+        for _ in 0..100 {
+            match self.state.try_lock() {
+                Ok(st) => return Some(st),
+                Err(TryLockError::Poisoned(p)) => return Some(p.into_inner()),
+                Err(TryLockError::WouldBlock) => std::thread::sleep(Duration::from_millis(1)),
+            }
+        }
+        None
     }
 
     fn update_max_level(&self) {
@@ -218,6 +362,40 @@ impl Log for Logger {
 }
 
 impl State {
+    /// Sets the log folder and makes it now: a crash handler can only open a file in it.
+    fn set_dir(&mut self, dir: PathBuf) {
+        let _ = std::fs::create_dir_all(&dir);
+        self.crash_wide = dir.join(CRASH_FILE).as_os_str().encode_wide().chain([0]).collect();
+        self.dir = Some(dir);
+    }
+
+    /// Writes `last-crash.log`: `header`, then the lines in memory. Allocates nothing, so it also
+    /// works from the native exception filter.
+    fn write_crash(&self, header: &str) {
+        if self.crash_wide.is_empty() {
+            return;
+        }
+        // SAFETY: the path is null-terminated; the handle is owned by `file` and closed by it.
+        let mut file = unsafe {
+            let Ok(handle) = CreateFileW(
+                PCWSTR(self.crash_wide.as_ptr()),
+                GENERIC_WRITE.0,
+                FILE_SHARE_READ,
+                None,
+                CREATE_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL,
+                None,
+            ) else {
+                return;
+            };
+            File::from_raw_handle(handle.0)
+        };
+        let _ = file.write_all(header.as_bytes());
+        for line in &self.lines {
+            let _ = file.write_all(line.as_bytes()).and_then(|()| file.write_all(b"\n"));
+        }
+    }
+
     fn hide(&mut self, text: &str, replacement: &str) {
         if !text.is_empty() && !self.hidden.iter().any(|(t, _)| t == text) {
             self.hidden.push((text.to_string(), replacement.to_string()));
@@ -372,6 +550,39 @@ mod tests {
         assert_eq!(old, FILE_LIMIT);
         assert_eq!(new, 10 * 1024);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn identifier_matches_tauri_config() {
+        let config = include_str!("../tauri.conf.json");
+        assert!(config.contains(&format!("\"identifier\": \"{IDENTIFIER}\"")));
+    }
+
+    #[test]
+    fn stack_text_cuts_at_a_char() {
+        let mut t = StackText::<5>::new();
+        let _ = t.write_str("abééé");
+        assert_eq!(t.as_str(), "abé");
+    }
+
+    #[test]
+    fn crash_file_has_header_and_buffer() {
+        let dir = temp_dir("crash");
+        let mut st = State::default();
+        st.set_dir(dir.clone());
+        st.store("one".into());
+        st.store("two".into());
+        st.write_crash("crashed\n\n");
+        let text = std::fs::read_to_string(dir.join(CRASH_FILE)).unwrap();
+        assert_eq!(text, "crashed\n\none\ntwo\n");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn names_the_module_of_an_address() {
+        let mut name = StackText::<260>::new();
+        assert!(module_name(names_the_module_of_an_address as *const std::ffi::c_void, &mut name));
+        assert!(name.as_str().ends_with(".exe"), "{}", name.as_str());
     }
 
     #[test]

@@ -58,7 +58,11 @@ pub fn gpu_names() -> Vec<String> {
             continue;
         }
         let len = desc.Description.iter().position(|&c| c == 0).unwrap_or(desc.Description.len());
-        names.push(String::from_utf16_lossy(&desc.Description[..len]));
+        let name = String::from_utf16_lossy(&desc.Description[..len]);
+        // DXGI can list one GPU more than once, e.g. a laptop's with the display on another.
+        if !names.contains(&name) {
+            names.push(name);
+        }
     }
     names
 }
