@@ -190,7 +190,8 @@ impl Pipeline {
 
     fn shutdown(&mut self) -> Option<VirtualCamera> {
         self.shared.stop.store(true, Ordering::SeqCst);
-        // Unblocks the read the pipeline thread may be sitting in.
+        // Unblocks the read the pipeline thread may be sitting in. While the server is still
+        // starting there is no socket yet; the thread sees the flag at its first packet instead.
         if let Some(s) = self.shared.video.lock().unwrap().as_ref() {
             let _ = s.shutdown(Shutdown::Both);
         }
@@ -508,6 +509,11 @@ fn stream(
     let mut catch_up = link.wifi.then(CatchUp::default);
 
     loop {
+        // A stop that came while the server was starting had no socket to shut down, and a
+        // healthy stream never fails a read, so the flag is checked on every packet too.
+        if shared.stop.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         let packet = match protocol::read_packet(&mut reader) {
             Ok(p) => p,
             Err(_) if shared.stop.load(Ordering::SeqCst) => return Ok(()),
