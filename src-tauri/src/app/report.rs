@@ -62,9 +62,10 @@ fn build(c: &Controller) -> String {
         out += "\n===== last-crash.log =====\n";
         out += &crash;
     }
-    let (log, from_files) = diag::report_log();
-    out += &format!("\n===== Log ({}) =====\n", if from_files { "plugcam.log" } else { "this session, from memory" });
-    out += &log;
+    for (title, log) in diag::report_logs() {
+        out += &format!("\n===== Log ({title}) =====\n");
+        out += &log;
+    }
     out
 }
 
