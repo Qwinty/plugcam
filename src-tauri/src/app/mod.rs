@@ -88,6 +88,14 @@ pub fn run() {
             set_preview_width,
             open_url,
             set_camera_registered,
+            select_phone,
+            wifi_qr_start,
+            wifi_qr_wait,
+            wifi_qr_cancel,
+            wifi_pair_code,
+            wifi_connect,
+            wifi_from_cable,
+            wifi_forget,
             save_report,
             open_log_folder,
             updates::update_state,
@@ -225,6 +233,56 @@ fn set_preview_width(c: Ctl, width: u32) {
 async fn set_camera_registered(c: Ctl<'_>, on: bool) -> Result<(), String> {
     let c = c.inner().clone();
     tauri::async_runtime::spawn_blocking(move || c.set_camera_registered(on)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn select_phone(c: Ctl<'_>, serial: Option<String>) -> Result<(), String> {
+    let c = c.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || c.select_phone(serial)).await.map_err(|e| e.to_string())
+}
+
+/// A new QR code for Wi-Fi pairing, as SVG.
+#[tauri::command]
+fn wifi_qr_start(c: Ctl) -> String {
+    c.wifi_qr_start()
+}
+
+/// Waits for the phone to scan the QR code (minutes), then pairs; returns the phone's serial.
+#[tauri::command]
+async fn wifi_qr_wait(c: Ctl<'_>) -> Result<String, String> {
+    let c = c.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || c.wifi_qr_wait()).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn wifi_qr_cancel(c: Ctl) {
+    c.wifi_qr_cancel()
+}
+
+#[tauri::command]
+async fn wifi_pair_code(c: Ctl<'_>, code: String, address: Option<String>) -> Result<String, String> {
+    let c = c.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || c.wifi_pair_code(&code, address.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn wifi_connect(c: Ctl<'_>, address: String) -> Result<String, String> {
+    let c = c.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || c.wifi_connect(&address)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn wifi_from_cable(c: Ctl<'_>) -> Result<String, String> {
+    let c = c.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || c.wifi_from_cable()).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn wifi_forget(c: Ctl<'_>, id: String) -> Result<(), String> {
+    let c = c.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || c.wifi_forget(&id)).await.map_err(|e| e.to_string())
 }
 
 /// Opens help links (driver download, docs) in the default browser; https only.

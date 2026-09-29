@@ -40,6 +40,11 @@ export function setLanguage(code: string) {
   document.documentElement.lang = lang.code;
 }
 
+/** For keys built at run time, e.g. from an error code. */
+export function hasKey(key: string): key is Key {
+  return key in en;
+}
+
 export function t(key: Key, params: Record<string, string | number> = {}): string {
   return dict[key].replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? ""));
 }

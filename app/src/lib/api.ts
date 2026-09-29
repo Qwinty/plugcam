@@ -26,6 +26,8 @@ export interface Settings {
   checkUpdates: boolean;
   /** The version whose "What's new" was last shown; `null` on a fresh install. */
   lastSeenVersion: string | null;
+  /** The picked phone's serial; `null` = the first ready one, USB first. */
+  phone: string | null;
   /** Write a detailed log to a file for bug reports. */
   detailedLog: boolean;
 }
@@ -42,6 +44,7 @@ export type Status =
   | { kind: "waitingForDevice" }
   | { kind: "connecting"; serial: string }
   | { kind: "streaming"; serial: string; device: string; width: number; height: number }
+  | { kind: "reconnecting"; serial: string; attempt: number; tries: number }
   | { kind: "noPicture"; serial: string }
   | { kind: "error"; message: string }
   | { kind: "stopped" };
@@ -52,6 +55,16 @@ export interface DeviceView {
   name: string | null;
   wifi: boolean;
   state: string;
+}
+
+/** A phone remembered for Wi-Fi. */
+export interface WifiPhoneView {
+  id: string;
+  name: string | null;
+  /** The serial it is connected under, when it is connected. */
+  serial: string | null;
+  /** Switched over from the cable: not encrypted, gone after the phone restarts. */
+  plain: boolean;
 }
 
 export interface CameraView {
@@ -95,6 +108,11 @@ export interface Snapshot {
   highSpeedOffered: boolean;
   torch: boolean;
   fps: number;
+  /** Bits per second the phone streams at; 0 when not streaming. */
+  bitrate: number;
+  /** Every phone adb lists. */
+  devices: DeviceView[];
+  wifiPhones: WifiPhoneView[];
   /** As the phone last reported it. */
   zoom: number;
   zoomRange: [number, number] | null;
@@ -123,6 +141,16 @@ export const setPreviewActive = (active: boolean) => invoke<void>("set_preview_a
 /** How wide the picture is shown, in physical pixels, so no wider JPEGs are made. */
 export const setPreviewWidth = (width: number) => invoke<void>("set_preview_width", { width });
 export const setCameraRegistered = (on: boolean) => invoke<void>("set_camera_registered", { on });
+export const selectPhone = (serial: string | null) => invoke<void>("select_phone", { serial });
+/** A new QR code for pairing over Wi-Fi, as SVG. */
+export const wifiQrStart = () => invoke<string>("wifi_qr_start");
+/** Resolves with the phone's serial once it scanned the code and paired; rejects with an error code. */
+export const wifiQrWait = () => invoke<string>("wifi_qr_wait");
+export const wifiQrCancel = () => invoke<void>("wifi_qr_cancel");
+export const wifiPairCode = (code: string, address: string | null) => invoke<string>("wifi_pair_code", { code, address });
+export const wifiConnect = (address: string) => invoke<string>("wifi_connect", { address });
+export const wifiFromCable = () => invoke<string>("wifi_from_cable");
+export const wifiForget = (id: string) => invoke<void>("wifi_forget", { id });
 /** Saves a bug report to Downloads and opens the new-issue form; returns the file's path. */
 export const saveReport = () => invoke<string>("save_report");
 export const openLogFolder = () => invoke<void>("open_log_folder");

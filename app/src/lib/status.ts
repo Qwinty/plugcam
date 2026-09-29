@@ -29,6 +29,12 @@ export function statusInfo(s: Snapshot): StatusInfo {
       return { tone: "live", title: t("status.streaming"), hint: "" };
     case "connecting":
       return { tone: "busy", title: t("status.connecting"), hint: "" };
+    case "reconnecting":
+      return {
+        tone: "busy",
+        title: t("status.reconnecting", { attempt: s.status.attempt, tries: s.status.tries }),
+        hint: t("status.reconnecting.hint"),
+      };
     case "waitingForDevice":
     case "stopped":
       return { tone: "warn", title: t("status.waiting"), hint: t("status.noPhone.hint") };
