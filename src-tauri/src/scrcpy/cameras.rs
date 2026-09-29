@@ -1,7 +1,7 @@
 //! The phone's cameras, parsed from scrcpy-server's `list_cameras=true list_camera_sizes=true`
-//! report, and the choice of capture mode for a quality preset.
+//! report, and the choice of capture mode for a resolution and frame rate.
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CameraInfo {
@@ -77,47 +77,84 @@ fn parse_size(s: &str) -> Option<(u32, u32)> {
     Some((w.parse().ok()?, h.parse().ok()?))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum Quality {
-    /// 720p30
-    Economy,
-    /// 1080p30
-    #[default]
-    Standard,
-    /// ~1080p60 through a 120 fps high-speed session (see docs/stage0.md)
-    Smooth,
-}
+/// Regular sessions give 60 fps only up to this height: the fps list is the same for every
+/// size, and a phone that lists 60 may not reach it at 1440p or 4K.
+const REGULAR_60_MAX_HEIGHT: u32 = 1080;
+/// High-speed sessions start at 120 fps; the OnePlus 11R delivers ~60 of them (docs/stage0.md).
+const HIGH_SPEED_FPS: u32 = 120;
 
-/// Capture settings for one camera and quality preset.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Capture settings for one camera, resolution and frame rate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CaptureMode {
     pub size: (u32, u32),
     pub fps: u32,
     pub high_speed: bool,
 }
 
-impl Quality {
-    fn target(self) -> (u32, u32) {
-        match self {
-            Quality::Economy => (1280, 720),
-            Quality::Standard | Quality::Smooth => (1920, 1080),
+/// One entry of the frame rate picker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FpsOption {
+    /// The setting: 30 or 60.
+    pub value: u32,
+    /// What the phone is asked for (e.g. 24 on a lens without 30, 120 in high-speed).
+    pub fps: u32,
+    pub high_speed: bool,
+}
+
+/// Picks the capture mode closest to `size` at `fps` (30 or 60), or `None` if the camera
+/// lists no sizes.
+///
+/// 60 fps comes from a regular session when the camera offers it. Otherwise, and only with
+/// `allow_high_speed`, it comes from a constrained high-speed session: there Android forces
+/// auto AE/AWB/AF and FAST post-processing, and exposure is at most 1/120 s, so colors differ,
+/// the picture is noisier and lamps on 50 Hz mains flicker. When neither works at this size,
+/// the camera stays at 30.
+pub fn capture_mode(cam: &CameraInfo, size: (u32, u32), fps: u32, allow_high_speed: bool) -> Option<CaptureMode> {
+    let size = best_size(cam.sizes.iter().copied(), size.0, size.1)?;
+    if fps >= 60 {
+        if cam.fps.contains(&60) && size.1 <= REGULAR_60_MAX_HEIGHT {
+            return Some(CaptureMode { size, fps: 60, high_speed: false });
         }
+        if allow_high_speed && cam.high_speed.iter().any(|m| m.size == size && m.fps.contains(&HIGH_SPEED_FPS)) {
+            return Some(CaptureMode { size, fps: HIGH_SPEED_FPS, high_speed: true });
+        }
+    }
+    let fps = if cam.fps.is_empty() || cam.fps.contains(&30) {
+        30
+    } else {
+        cam.fps.iter().copied().filter(|&f| f < 30).max().or(cam.fps.iter().copied().min()).unwrap()
+    };
+    Some(CaptureMode { size, fps, high_speed: false })
+}
+
+/// The `candidates` this camera captures as they are, or the smallest one if it has none of
+/// them (the picture is then scaled up).
+pub fn resolutions(cam: &CameraInfo, candidates: &[(u32, u32)]) -> Vec<(u32, u32)> {
+    let native: Vec<_> = candidates.iter().copied().filter(|s| cam.sizes.contains(s)).collect();
+    if native.is_empty() {
+        candidates.iter().copied().min_by_key(|s| s.0 * s.1).into_iter().collect()
+    } else {
+        native
     }
 }
 
-/// Picks the capture mode for `quality`, or `None` if the camera cannot do it
-/// (only `Smooth` can be unavailable: it needs a 120 fps high-speed mode).
-pub fn capture_mode(cam: &CameraInfo, quality: Quality) -> Option<CaptureMode> {
-    let (tw, th) = quality.target();
-    if quality == Quality::Smooth {
-        let modes = cam.high_speed.iter().filter(|m| m.fps.contains(&120));
-        let size = best_size(modes.map(|m| m.size), tw, th)?;
-        return Some(CaptureMode { size, fps: 120, high_speed: true });
-    }
-    let fps = if cam.fps.is_empty() || cam.fps.contains(&30) { 30 } else { *cam.fps.iter().max().unwrap() };
-    let size = best_size(cam.sizes.iter().copied(), tw, th)?;
-    Some(CaptureMode { size, fps, high_speed: false })
+/// Frame rates the picker offers at `size`: 30, and 60 when the camera really gets there.
+pub fn fps_options(cam: &CameraInfo, size: (u32, u32), allow_high_speed: bool) -> Vec<FpsOption> {
+    [30, 60]
+        .into_iter()
+        .filter_map(|value| {
+            let m = capture_mode(cam, size, value, allow_high_speed)?;
+            (value == 30 || m.fps >= 60).then_some(FpsOption { value, fps: m.fps, high_speed: m.high_speed })
+        })
+        .collect()
+}
+
+/// At `size`, 60 fps is possible on this camera only through a high-speed session.
+pub fn sixty_needs_high_speed(cam: &CameraInfo, size: (u32, u32)) -> bool {
+    let sixty = |allow| capture_mode(cam, size, 60, allow).is_some_and(|m| m.fps >= 60);
+    !sixty(false) && sixty(true)
 }
 
 /// Exact target if offered; otherwise the largest 16:9 size not taller than the target;
@@ -142,6 +179,10 @@ fn best_size(sizes: impl Iterator<Item = (u32, u32)>, tw: u32, th: u32) -> Optio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const HD: (u32, u32) = (1280, 720);
+    const FULL_HD: (u32, u32) = (1920, 1080);
+    const UHD: (u32, u32) = (3840, 2160);
 
     fn oneplus() -> Vec<CameraInfo> {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/oneplus11r-list-cameras.txt");
@@ -172,13 +213,55 @@ mod tests {
     #[test]
     fn capture_modes_on_oneplus_11r() {
         let cams = oneplus();
-        let mode = |i: usize, q| capture_mode(&cams[i], q);
-        assert_eq!(mode(0, Quality::Standard), Some(CaptureMode { size: (1920, 1080), fps: 30, high_speed: false }));
-        assert_eq!(mode(0, Quality::Economy), Some(CaptureMode { size: (1280, 720), fps: 30, high_speed: false }));
-        assert_eq!(mode(0, Quality::Smooth), Some(CaptureMode { size: (1920, 1080), fps: 120, high_speed: true }));
-        assert_eq!(mode(1, Quality::Smooth), None);
+        let mode = |i: usize, size, fps, hs| capture_mode(&cams[i], size, fps, hs);
+        let m = |size, fps, high_speed| Some(CaptureMode { size, fps, high_speed });
+        assert_eq!(mode(0, FULL_HD, 30, false), m(FULL_HD, 30, false));
+        assert_eq!(mode(0, HD, 30, false), m(HD, 30, false));
+        assert_eq!(mode(0, UHD, 30, false), m(UHD, 30, false));
+        // No regular 60 on this phone: high-speed only when allowed, else it stays at 30.
+        assert_eq!(mode(0, FULL_HD, 60, false), m(FULL_HD, 30, false));
+        assert_eq!(mode(0, FULL_HD, 60, true), m(FULL_HD, 120, true));
+        assert_eq!(mode(0, HD, 60, true), m(HD, 120, true));
+        assert_eq!(mode(0, UHD, 60, true), m(UHD, 30, false));
+        assert_eq!(mode(1, FULL_HD, 60, true), m(FULL_HD, 30, false));
         // Macro camera tops out at 1440x1080: the largest 16:9 size under 1080 lines is 1280x720.
-        assert_eq!(mode(3, Quality::Standard), Some(CaptureMode { size: (1280, 720), fps: 30, high_speed: false }));
+        assert_eq!(mode(3, FULL_HD, 30, false), m(HD, 30, false));
+        assert!(sixty_needs_high_speed(&cams[0], FULL_HD));
+        assert!(!sixty_needs_high_speed(&cams[0], UHD));
+        assert!(!sixty_needs_high_speed(&cams[1], FULL_HD));
+    }
+
+    #[test]
+    fn regular_60_is_preferred() {
+        let mut cam = oneplus().remove(0);
+        cam.fps.push(60);
+        let m = |size, fps, high_speed| Some(CaptureMode { size, fps, high_speed });
+        assert_eq!(capture_mode(&cam, FULL_HD, 60, true), m(FULL_HD, 60, false));
+        assert_eq!(capture_mode(&cam, FULL_HD, 60, false), m(FULL_HD, 60, false));
+        assert_eq!(capture_mode(&cam, UHD, 60, true), m(UHD, 30, false));
+        assert!(!sixty_needs_high_speed(&cam, FULL_HD));
+        let opts = fps_options(&cam, FULL_HD, false);
+        assert_eq!(opts[1], FpsOption { value: 60, fps: 60, high_speed: false });
+    }
+
+    #[test]
+    fn picker_options_on_oneplus_11r() {
+        let cams = oneplus();
+        let all = [HD, FULL_HD, (2560, 1440), UHD];
+        assert_eq!(resolutions(&cams[0], &all), all);
+        assert_eq!(resolutions(&cams[3], &all), [HD]);
+        assert_eq!(resolutions(&cams[3], &[FULL_HD, UHD]), [FULL_HD]);
+
+        let values = |size, hs| fps_options(&cams[0], size, hs).iter().map(|o| o.value).collect::<Vec<_>>();
+        assert_eq!(values(FULL_HD, false), [30]);
+        assert_eq!(values(FULL_HD, true), [30, 60]);
+        assert_eq!(values(UHD, true), [30]);
+        assert_eq!(fps_options(&cams[0], FULL_HD, true)[1], FpsOption { value: 60, fps: 120, high_speed: true });
+        // Only 24 and 30 on the macro lens; a lens with no 30 offers the best below it.
+        assert_eq!(fps_options(&cams[3], HD, true), [FpsOption { value: 30, fps: 30, high_speed: false }]);
+        let mut cam = cams[3].clone();
+        cam.fps = vec![15, 24];
+        assert_eq!(fps_options(&cam, HD, true)[0].fps, 24);
     }
 
     #[test]
@@ -187,6 +270,7 @@ mod tests {
         let cams = parse_camera_list("    --camera-id=7    (external, 640x480)\n        - 640x480\n");
         assert_eq!(cams[0].facing, "external");
         assert!(cams[0].fps.is_empty() && cams[0].zoom.is_none());
-        assert_eq!(capture_mode(&cams[0], Quality::Standard).unwrap().size, (640, 480));
+        assert_eq!(capture_mode(&cams[0], FULL_HD, 30, false).unwrap().size, (640, 480));
+        assert_eq!(resolutions(&cams[0], &[FULL_HD, HD]), [HD]);
     }
 }

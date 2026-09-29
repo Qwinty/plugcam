@@ -3,17 +3,19 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type Quality = "economy" | "standard" | "smooth";
-
 export interface Settings {
   onboardingDone: boolean;
   facing: "back" | "front";
   cameraId: string | null;
-  quality: Quality;
+  /** 30 or 60; a lens without 60 runs at 30. */
+  fps: 30 | 60;
+  /** Let 60 fps come from the phone's slow-motion (high-speed) mode. */
+  allowHighSpeed: boolean;
   mirror: boolean;
   rotation: 0 | 90 | 180 | 270;
   color: ColorAdjust;
   bitrateMbps: number | null;
+  /** The chosen resolution: the virtual camera's size, and the capture size when the lens has it. */
   vcamWidth: number;
   vcamHeight: number;
   launchAtLogin: boolean;
@@ -58,6 +60,20 @@ export interface CameraView {
   zoomMax: number | null;
 }
 
+export interface CaptureMode {
+  size: [number, number];
+  fps: number;
+  highSpeed: boolean;
+}
+
+export interface FpsOption {
+  /** The setting: 30 or 60. */
+  value: number;
+  /** What the phone is asked for (120 in high-speed). */
+  fps: number;
+  highSpeed: boolean;
+}
+
 export type Notice = { kind: "lensHidden"; id: string } | { kind: "startFailed"; message: string };
 
 export interface Snapshot {
@@ -67,7 +83,14 @@ export interface Snapshot {
   device: DeviceView | null;
   cameras: CameraView[];
   selectedCamera: string | null;
-  smoothAvailable: boolean;
+  /** Resolutions the lens captures as they are (all while its list is unknown). */
+  resolutions: [number, number][];
+  /** Frame rates offered at the chosen resolution. */
+  fpsOptions: FpsOption[];
+  /** What the phone is asked for, once its lens list is known. */
+  capture: CaptureMode | null;
+  /** At the chosen resolution, 60 fps on this lens comes only from high-speed, behind a setting. */
+  highSpeedOffered: boolean;
   torch: boolean;
   fps: number;
   /** As the phone last reported it. */

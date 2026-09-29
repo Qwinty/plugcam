@@ -20,7 +20,7 @@
     LoaderCircle,
   } from "@lucide/svelte";
   import * as api from "./api";
-  import type { Snapshot, CameraView, Quality, UpdateView } from "./api";
+  import type { Snapshot, CameraView, UpdateView } from "./api";
   import { t } from "./i18n";
   import { holdRepeat } from "./holdRepeat";
   import { statusInfo } from "./status";
@@ -58,6 +58,20 @@
   const lenses = $derived(snap.cameras.filter((c) => c.facing === s.facing));
   const ready = $derived(snap.device?.state === "device" && !snap.problem);
   const torchAvailable = $derived(streaming && s.facing === "back");
+
+  // Every size is offered; ones the lens does not capture as they are stay disabled unless chosen.
+  const SIZES = [
+    [1280, 720, "720p"],
+    [1920, 1080, "1080p"],
+    [2560, 1440, "1440p"],
+    [3840, 2160, "4K"],
+  ] as const;
+  const sizeKey = (w: number, h: number) => `${w}x${h}`;
+  const has60 = $derived(snap.fpsOptions.some((o) => o.value === 60));
+  const fps = $derived(s.fps === 60 && has60 ? 60 : 30);
+  const upscaled = $derived(
+    snap.capture !== null && (snap.capture.size[0] !== s.vcamWidth || snap.capture.size[1] !== s.vcamHeight),
+  );
 
   // Quick zoom values the running lens can reach, like the 1x/2x/5x of a camera app.
   const zoomPresets = $derived(
@@ -250,20 +264,34 @@
   <section class="section">
     <h2>{t("sec.quality")}</h2>
     <Segmented
-      label={t("sec.quality")}
-      value={s.quality}
-      onchange={(q: Quality) => api.updateSettings({ quality: q })}
-      options={[
-        { value: "economy", label: t("quality.economy") },
-        { value: "standard", label: t("quality.standard") },
-        {
-          value: "smooth",
-          label: t("quality.smooth"),
-          title: snap.smoothAvailable || !ready ? undefined : t("quality.smooth.na"),
-          disabled: ready && snap.cameras.length > 0 && !snap.smoothAvailable,
-        },
-      ]} />
-    <p class="quality-hint">{t(`quality.${s.quality}.hint` as const)}</p>
+      label={t("quality.resolution")}
+      value={sizeKey(s.vcamWidth, s.vcamHeight)}
+      onchange={(v: string) => {
+        const [w, h] = v.split("x").map(Number);
+        api.updateSettings({ vcamWidth: w, vcamHeight: h });
+      }}
+      options={SIZES.map(([w, h, label]) => {
+        const chosen = w === s.vcamWidth && h === s.vcamHeight;
+        const off = !chosen && !snap.resolutions.some(([rw, rh]) => rw === w && rh === h);
+        return { value: sizeKey(w, h), label, title: off ? t("quality.sizeNa") : undefined, disabled: off };
+      })} />
+    <Segmented
+      label={t("quality.fps")}
+      value={fps}
+      onchange={(v: number) => api.updateSettings({ fps: v === 60 ? 60 : 30 })}
+      options={[30, 60].map((v) => ({
+        value: v,
+        label: t("quality.fpsValue", { v }),
+        title: v === 30 || has60 ? undefined : t(snap.highSpeedOffered ? "quality.fpsHighSpeedOff" : "quality.fpsNa"),
+        disabled: v === 60 && !has60,
+      }))} />
+    {#if snap.capture?.highSpeed}
+      <p class="quality-hint">{t("quality.highSpeed")}</p>
+    {:else if upscaled && snap.capture}
+      <p class="quality-hint">{t("quality.upscaled", { size: `${snap.capture.size[0]} × ${snap.capture.size[1]}` })}</p>
+    {:else if snap.highSpeedOffered && !has60}
+      <p class="quality-hint">{t("quality.fpsHighSpeedOff")}</p>
+    {/if}
   </section>
 </div>
 
@@ -502,5 +530,6 @@
     margin: 0 2px;
     font-size: 12px;
     color: var(--text-2);
+    text-wrap: pretty;
   }
 </style>

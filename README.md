@@ -39,8 +39,9 @@
 - **A real webcam for Windows.** "Plugcam Camera" shows up next to your other cameras in desktop
   apps and browsers that use DirectShow: Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge,
   Firefox, and so web calls like Google Meet too.
-- **Good picture.** Up to 1080p at 30 fps, or 60 fps on phones that support it. The phone encodes
-  H.264 in hardware and the PC's graphics chip decodes it, so your PC barely notices.
+- **Good picture.** Up to 4K if the phone's camera captures it, at 30 fps, or 60 fps on phones
+  that support it. The phone encodes H.264 in hardware and the PC's graphics chip decodes it, so
+  your PC barely notices.
 - **All the controls you'd expect.** Back or front camera and each lens, zoom with 1×/2×/5×
   presets, flashlight, rotation for a phone standing upright, mirror, and brightness, contrast,
   saturation and warmth.
@@ -58,7 +59,7 @@ links to the vendor's own page.
 | | Plugcam | [DroidCam](https://droidcam.app/) | [Iriun](https://iriun.com/) | [iVCam](https://www.e2esoft.com/ivcam/) | [Camo](https://camo.com/pricing) | [Phone Link](https://support.microsoft.com/en-us/windows/apps/phonelink/use-your-mobile-device-s-camera) |
 |---|---|---|---|---|---|---|
 | App on the phone | **none** | yes | yes | yes | yes | Link to Windows |
-| Free picture | **1080p, 30 or 60 fps** | 640×480; HD has a watermark | up to 4K, with a watermark | watermark; 640×480 after the trial | up to 720p | 720p |
+| Free picture | **up to 4K, 30 or 60 fps** | 640×480; HD has a watermark | up to 4K, with a watermark | watermark; 640×480 after the trial | up to 720p | 720p |
 | Ads | **none** | yes | yes | yes | none | none |
 | Connection | USB | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | Wi-Fi + Bluetooth |
 | Open source | **yes, Apache-2.0** | PC client only | no | no | no | no |
@@ -68,12 +69,12 @@ Two app-free options you may already have: phones with Android 14 or newer can a
 webcam on their own if the maker turned that mode on (Pixels do), and
 [scrcpy](https://github.com/Genymobile/scrcpy), which Plugcam builds on, shows the camera in a
 window (on Windows you need OBS to turn that window into a webcam). What Plugcam still lacks next
-to the paid apps: Wi-Fi, 4K and sound.
+to the paid apps: Wi-Fi and sound.
 
 ### Other open-source projects
 
 Of these, only Plugcam gives Windows a webcam with nothing installed on the phone and no OBS in
-between. The others have things Plugcam doesn't: Wi-Fi, 4K, older Android versions, or (BestCam)
+between. The others have things Plugcam doesn't: Wi-Fi, older Android versions, or (BestCam)
 a camera that Microsoft Store apps can see. scrcpy, which Plugcam builds on, is a command-line
 tool; Plugcam puts its camera mode into an app with a preview and controls. Checked against each
 project's README in September 2026.
@@ -180,8 +181,8 @@ built-in USB webcam mode, if the maker turned it on (Pixels do).
 
 ### Is there a free, open-source alternative to DroidCam, Iriun or iVCam?
 
-Plugcam is one. It is open source under Apache-2.0 and gives 1080p at 30 fps, or 60 fps on phones
-that support it, with no watermark, ads, time limit or account. What those apps have and Plugcam doesn't yet: Wi-Fi, 4K and sound. See
+Plugcam is one. It is open source under Apache-2.0 and gives up to 4K at 30 fps, or 60 fps on phones
+that support it, with no watermark, ads, time limit or account. What those apps have and Plugcam doesn't yet: Wi-Fi and sound. See
 [How it compares](#how-it-compares).
 
 ### Which apps can use Plugcam Camera?

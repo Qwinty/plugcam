@@ -29,7 +29,7 @@
 
 - **Rien à installer sur le téléphone.** Plugcam communique avec le téléphone via le débogage USB et y lance la partie caméra de [scrcpy](https://github.com/Genymobile/scrcpy) le temps de la diffusion.
 - **Une vraie webcam pour Windows.** « Plugcam Camera » apparaît à côté de vos autres caméras dans les logiciels et navigateurs qui utilisent DirectShow : Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge, Firefox, et donc aussi dans les appels web comme Google Meet.
-- **Une bonne image.** Jusqu’à 1080p à 30 i/s, ou 60 i/s sur les téléphones compatibles. Le téléphone encode en H.264 matériel et la puce graphique du PC décode, le PC ne sent presque rien.
+- **Une bonne image.** Jusqu’à la 4K si la caméra du téléphone la capte, à 30 i/s, ou 60 i/s sur les téléphones compatibles. Le téléphone encode en H.264 matériel et la puce graphique du PC décode, le PC ne sent presque rien.
 - **Tous les réglages attendus.** Caméra arrière ou avant et chaque objectif, zoom avec 1×/2×/5×, lampe torche, rotation pour un téléphone posé à la verticale, effet miroir, ainsi que luminosité, contraste, saturation et chaleur.
 - **Gratuit pour de bon.** Pas de filigrane, pas de limite de durée, pas de compte, pas de télémétrie. Apache-2.0.
 - **Léger.** Un téléchargement de 7,4 Mo. Dans la zone de notification, il occupe 7 Mo de mémoire ; en diffusant depuis là, moins de 1 % du processeur. Les mises à jour s’installent d’elles-mêmes en un clic.
@@ -42,17 +42,17 @@ Les applis que l’on essaie d’habitude en premier, en septembre 2026. Les off
 | | Plugcam | [DroidCam](https://droidcam.app/) | [Iriun](https://iriun.com/) | [iVCam](https://www.e2esoft.com/ivcam/) | [Camo](https://camo.com/pricing) | [Phone Link](https://support.microsoft.com/en-us/windows/apps/phonelink/use-your-mobile-device-s-camera) |
 |---|---|---|---|---|---|---|
 | Appli sur le téléphone | **aucune** | oui | oui | oui | oui | Link to Windows |
-| Image gratuite | **1080p, 30 ou 60 i/s** | 640×480 ; filigrane en HD | jusqu’à 4K, avec filigrane | filigrane ; 640×480 après l’essai | jusqu’à 720p | 720p |
+| Image gratuite | **jusqu’à 4K, 30 ou 60 i/s** | 640×480 ; filigrane en HD | jusqu’à 4K, avec filigrane | filigrane ; 640×480 après l’essai | jusqu’à 720p | 720p |
 | Publicité | **aucune** | oui | oui | oui | aucune | aucune |
 | Connexion | USB | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | Wi-Fi + Bluetooth |
 | Open source | **oui, Apache-2.0** | client PC seulement | non | non | non | non |
 | Téléchargement Windows | **7,4 Mo** | 98 Mo | 8,8 Mo, nécessite .NET Desktop Runtime | environ 43 Mo | environ 475 Mo | intégré à Windows 11 |
 
-Deux options sans appli que vous avez peut-être déjà : les téléphones sous Android 14 ou plus récent peuvent servir eux-mêmes de webcam USB si le fabricant a activé ce mode (c’est le cas des Pixel), et [scrcpy](https://github.com/Genymobile/scrcpy), sur lequel Plugcam s’appuie, affiche la caméra dans une fenêtre (sous Windows, il faut OBS pour faire de cette fenêtre une webcam). Ce qui manque encore à Plugcam face aux applis payantes : le Wi-Fi, la 4K et le son.
+Deux options sans appli que vous avez peut-être déjà : les téléphones sous Android 14 ou plus récent peuvent servir eux-mêmes de webcam USB si le fabricant a activé ce mode (c’est le cas des Pixel), et [scrcpy](https://github.com/Genymobile/scrcpy), sur lequel Plugcam s’appuie, affiche la caméra dans une fenêtre (sous Windows, il faut OBS pour faire de cette fenêtre une webcam). Ce qui manque encore à Plugcam face aux applis payantes : le Wi-Fi et le son.
 
 ### Autres projets open source
 
-Parmi eux, seul Plugcam offre une webcam à Windows sans rien installer sur le téléphone ni passer par OBS. Les autres ont des choses que Plugcam n’a pas : le Wi-Fi, la 4K, la prise en charge d’anciennes versions d’Android ou (pour BestCam) une caméra visible par les applis du Microsoft Store. Vérifié d’après le README de chaque projet en septembre 2026. scrcpy, sur lequel repose Plugcam, s’utilise en ligne de commande, et Plugcam fait de son mode caméra une appli avec aperçu et réglages.
+Parmi eux, seul Plugcam offre une webcam à Windows sans rien installer sur le téléphone ni passer par OBS. Les autres ont des choses que Plugcam n’a pas : le Wi-Fi, la prise en charge d’anciennes versions d’Android ou (pour BestCam) une caméra visible par les applis du Microsoft Store. Vérifié d’après le README de chaque projet en septembre 2026. scrcpy, sur lequel repose Plugcam, s’utilise en ligne de commande, et Plugcam fait de son mode caméra une appli avec aperçu et réglages.
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (alpha) | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -126,7 +126,7 @@ Oui, c’est ce que fait Plugcam. Il lance la partie caméra de scrcpy sur le t�
 
 ### Existe-t-il une alternative gratuite et open source à DroidCam, Iriun ou iVCam ?
 
-Plugcam en est une. Il est open source sous Apache-2.0 et offre du 1080p à 30 i/s, ou 60 i/s sur les téléphones compatibles, sans filigrane, publicité, limite de durée ni compte. Ce que ces applis ont et que Plugcam n’a pas encore : le Wi-Fi, la 4K et le son. Voir la [comparaison](#comparaison).
+Plugcam en est une. Il est open source sous Apache-2.0 et offre jusqu’à la 4K à 30 i/s, ou 60 i/s sur les téléphones compatibles, sans filigrane, publicité, limite de durée ni compte. Ce que ces applis ont et que Plugcam n’a pas encore : le Wi-Fi et le son. Voir la [comparaison](#comparaison).
 
 ### Quelles applis peuvent utiliser Plugcam Camera ?
 
