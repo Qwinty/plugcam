@@ -29,7 +29,7 @@
 
 - **スマートフォンに何もインストールしません。** Plugcam は USB デバッグでスマートフォンとやり取りし、配信中だけ [scrcpy](https://github.com/Genymobile/scrcpy) のカメラ部分をスマートフォンで動かします。
 - **Windows の本物の Web カメラ。** 「Plugcam Camera」は、DirectShow を使うアプリやブラウザで他のカメラと並んで表示されます。Zoom、Discord、Telegram Desktop、OBS、Chrome、Edge、Firefox、そして Google Meet などの Web 通話でも使えます。
-- **きれいな映像。** 最大 1080p・30 fps、対応機種なら 60 fps。H.264 のエンコードはスマートフォンのハードウェアが、デコードは PC のグラフィックスチップが行うので、PC の負荷はわずかです。
+- **きれいな映像。** 最大 4K（スマートフォンのカメラが撮影できる範囲で）・30 fps、対応機種なら 60 fps。H.264 のエンコードはスマートフォンのハードウェアが、デコードは PC のグラフィックスチップが行うので、PC の負荷はわずかです。
 - **必要な操作はそろっています。** 背面・前面カメラと各レンズの切り替え、1×/2×/5× のズーム、ライト、縦置き用の回転、左右反転、明るさ・コントラスト・彩度・暖かさの調整。
 - **ずっと無料。** 透かし、時間制限、アカウント、テレメトリはありません。Apache-2.0 ライセンス。
 - **軽量。** ダウンロードは 7.4 MB。タスクトレイで待機中のメモリ使用量は 7 MB、そのまま配信しても CPU 使用率は 1% 未満です。アップデートはワンクリックで自動的にインストールされます。
@@ -42,17 +42,17 @@
 | | Plugcam | [DroidCam](https://droidcam.app/) | [Iriun](https://iriun.com/) | [iVCam](https://www.e2esoft.com/ivcam/) | [Camo](https://camo.com/pricing) | [Phone Link](https://support.microsoft.com/en-us/windows/apps/phonelink/use-your-mobile-device-s-camera) |
 |---|---|---|---|---|---|---|
 | スマートフォンのアプリ | **不要** | 必要 | 必要 | 必要 | 必要 | Link to Windows |
-| 無料版の映像 | **1080p、30 または 60 fps** | 640×480、HD は透かし入り | 最大 4K、透かし入り | 透かし入り、試用期間後は 640×480 | 最大 720p | 720p |
+| 無料版の映像 | **最大 4K、30 または 60 fps** | 640×480、HD は透かし入り | 最大 4K、透かし入り | 透かし入り、試用期間後は 640×480 | 最大 720p | 720p |
 | 広告 | **なし** | あり | あり | あり | なし | なし |
 | 接続 | USB | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | Wi-Fi + Bluetooth |
 | オープンソース | **はい、Apache-2.0** | PC 版クライアントのみ | いいえ | いいえ | いいえ | いいえ |
 | Windows 版のダウンロード | **7.4 MB** | 98 MB | 8.8 MB、.NET Desktop Runtime が必要 | 約 43 MB | 約 475 MB | Windows 11 に標準搭載 |
 
-アプリなしで使える方法が、すでに手元にあるかもしれません。Android 14 以降のスマートフォンは、メーカーがそのモードを有効にしていれば単体で USB Web カメラとして使えます（Pixel は対応）。また、Plugcam のベースである [scrcpy](https://github.com/Genymobile/scrcpy) はカメラ映像をウィンドウに表示できます（Windows でそのウィンドウを Web カメラにするには OBS が必要です）。有料アプリと比べて Plugcam にまだ足りないのは、Wi-Fi、4K、音声です。
+アプリなしで使える方法が、すでに手元にあるかもしれません。Android 14 以降のスマートフォンは、メーカーがそのモードを有効にしていれば単体で USB Web カメラとして使えます（Pixel は対応）。また、Plugcam のベースである [scrcpy](https://github.com/Genymobile/scrcpy) はカメラ映像をウィンドウに表示できます（Windows でそのウィンドウを Web カメラにするには OBS が必要です）。有料アプリと比べて Plugcam にまだ足りないのは、Wi-Fi と音声です。
 
 ### 他のオープンソース プロジェクト
 
-この中で、スマートフォンに何もインストールせず、間に OBS も挟まずに Windows に Web カメラを追加できるのは Plugcam だけです。ほかのプロジェクトには、Wi-Fi、4K、古い Android への対応、（BestCam では）Microsoft Store のアプリからも見えるカメラなど、Plugcam にない機能があります。2026 年 9 月に各プロジェクトの README で確認しました。Plugcam のベースである scrcpy はコマンドラインのツールで、Plugcam はそのカメラ機能をプレビューとコントロール付きのアプリにしています。
+この中で、スマートフォンに何もインストールせず、間に OBS も挟まずに Windows に Web カメラを追加できるのは Plugcam だけです。ほかのプロジェクトには、Wi-Fi、古い Android への対応、（BestCam では）Microsoft Store のアプリからも見えるカメラなど、Plugcam にない機能があります。2026 年 9 月に各プロジェクトの README で確認しました。Plugcam のベースである scrcpy はコマンドラインのツールで、Plugcam はそのカメラ機能をプレビューとコントロール付きのアプリにしています。
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam)（アルファ版） | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -126,7 +126,7 @@ Plugcam がスマートフォンとの通信に使う adb がさらに約 2 MB �
 
 ### DroidCam、Iriun、iVCam の代わりになる無料のオープンソース アプリはありますか？
 
-Plugcam がその 1 つです。Apache-2.0 のオープンソースで、1080p・30 fps（対応機種なら 60 fps）の映像を、透かし、広告、時間制限、アカウントなしで使えます。これらのアプリにあって Plugcam にまだないのは、Wi-Fi、4K、音声です。詳しくは[他のアプリとの比較](#他のアプリとの比較)をご覧ください。
+Plugcam がその 1 つです。Apache-2.0 のオープンソースで、最大 4K・30 fps（対応機種なら 60 fps）の映像を、透かし、広告、時間制限、アカウントなしで使えます。これらのアプリにあって Plugcam にまだないのは、Wi-Fi と音声です。詳しくは[他のアプリとの比較](#他のアプリとの比較)をご覧ください。
 
 ### Plugcam Camera はどのアプリで使えますか？
 
@@ -150,7 +150,7 @@ DirectShow カメラを使うデスクトップ アプリとブラウザです�
 
 ### Plugcam に対応している Android スマホは？
 
-Plugcam には Android 12 以降が必要です。scrcpy がカメラを取り込めるのは Android 12 からだからです。OnePlus 11R（Android 15）と Chrome で開発・テストしましたが、他のスマートフォンでも同じように動くはずです。スマートフォンによっては、他社アプリには映像を出さないレンズも一覧に含めます。Plugcam はそれを検出してそのレンズを隠し、メインカメラに切り替えます。お使いのスマートフォンやアプリで動かない場合は、機種名とアプリ名を添えて [issue を作成](https://github.com/Qwinty/plugcam/issues)してください。
+Plugcam には Android 12 以降が必要です。scrcpy がカメラを取り込めるのは Android 12 からだからです。OnePlus 11R（Android 15）と Chrome で開発・テストしましたが、他のスマートフォンでも同じように動くはずです。スマートフォンによっては、他社アプリには映像を出さないレンズも一覧に含めます。Plugcam はそれを検出してそのレンズを隠し、メインカメラに切り替えます。お使いのスマートフォンやアプリで動かない場合は、機種名とアプリ名を添えて [issue を作成](https://github.com/Qwinty/plugcam/issues)してください。Plugcam の **設定 → 診断 → レポートを保存** で、添付用のファイルを作れます。
 
 仕組み、ソースからのビルド、ライセンスについては[英語の README](../../README.md) をご覧ください。
 

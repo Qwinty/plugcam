@@ -3,17 +3,19 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type Quality = "economy" | "standard" | "smooth";
-
 export interface Settings {
   onboardingDone: boolean;
   facing: "back" | "front";
   cameraId: string | null;
-  quality: Quality;
+  /** 30 or 60; a lens without 60 runs at 30. */
+  fps: 30 | 60;
+  /** Let 60 fps come from the phone's slow-motion (high-speed) mode. */
+  allowHighSpeed: boolean;
   mirror: boolean;
   rotation: 0 | 90 | 180 | 270;
   color: ColorAdjust;
   bitrateMbps: number | null;
+  /** The chosen resolution: the virtual camera's size, and the capture size when the lens has it. */
   vcamWidth: number;
   vcamHeight: number;
   launchAtLogin: boolean;
@@ -26,6 +28,8 @@ export interface Settings {
   lastSeenVersion: string | null;
   /** The picked phone's serial; `null` = the first ready one, USB first. */
   phone: string | null;
+  /** Write a detailed log to a file for bug reports. */
+  detailedLog: boolean;
 }
 
 /** Picture adjustments made on the PC, each from -100 to 100. */
@@ -71,6 +75,20 @@ export interface CameraView {
   zoomMax: number | null;
 }
 
+export interface CaptureMode {
+  size: [number, number];
+  fps: number;
+  highSpeed: boolean;
+}
+
+export interface FpsOption {
+  /** The setting: 30 or 60. */
+  value: number;
+  /** What the phone is asked for (120 in high-speed). */
+  fps: number;
+  highSpeed: boolean;
+}
+
 export type Notice = { kind: "lensHidden"; id: string } | { kind: "startFailed"; message: string };
 
 export interface Snapshot {
@@ -80,7 +98,14 @@ export interface Snapshot {
   device: DeviceView | null;
   cameras: CameraView[];
   selectedCamera: string | null;
-  smoothAvailable: boolean;
+  /** Resolutions the lens captures as they are (all while its list is unknown). */
+  resolutions: [number, number][];
+  /** Frame rates offered at the chosen resolution. */
+  fpsOptions: FpsOption[];
+  /** What the phone is asked for, once its lens list is known. */
+  capture: CaptureMode | null;
+  /** At the chosen resolution, 60 fps on this lens comes only from high-speed, behind a setting. */
+  highSpeedOffered: boolean;
   torch: boolean;
   fps: number;
   /** Bits per second the phone streams at; 0 when not streaming. */
@@ -126,6 +151,9 @@ export const wifiPairCode = (code: string, address: string | null) => invoke<str
 export const wifiConnect = (address: string) => invoke<string>("wifi_connect", { address });
 export const wifiFromCable = () => invoke<string>("wifi_from_cable");
 export const wifiForget = (id: string) => invoke<void>("wifi_forget", { id });
+/** Saves a bug report to Downloads and opens the new-issue form; returns the file's path. */
+export const saveReport = () => invoke<string>("save_report");
+export const openLogFolder = () => invoke<void>("open_log_folder");
 
 export type UpdatePhase = "idle" | "checking" | "upToDate" | "available" | "downloading" | "installing" | "error";
 

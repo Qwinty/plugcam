@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::frame::ColorAdjust;
-use crate::scrcpy::cameras::Quality;
 use crate::scrcpy::server::{CameraParams, Facing};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -18,14 +17,24 @@ pub struct Settings {
     pub facing: String,
     /// A specific lens; `None` = the phone's default camera for `facing`.
     pub camera_id: Option<String>,
-    pub quality: Quality,
+    /// 30 or 60; a lens that cannot do 60 runs at 30 (see `cameras::capture_mode`).
+    pub fps: u32,
+    /// Let 60 fps come from a high-speed session on phones without a regular 60: smoother
+    /// but with worse colors and noise, so off unless the user turns it on.
+    pub allow_high_speed: bool,
+    /// Presets of 0.1.x (`economy`, `standard`, `smooth`), read once and turned into the
+    /// fields above by `sanitized`.
+    #[serde(skip_serializing)]
+    pub quality: Option<String>,
     pub mirror: bool,
     /// Clockwise degrees of the picture: 0, 90, 180 or 270.
     pub rotation: u16,
     /// Picture adjustments made on the PC.
     pub color: ColorAdjust,
-    /// `None` = automatic, by quality.
+    /// `None` = automatic, by resolution and fps.
     pub bitrate_mbps: Option<u32>,
+    /// The resolution picked in the window: the virtual camera's size, and the size the phone
+    /// captures in when its lens offers it.
     pub vcam_width: u32,
     pub vcam_height: u32,
     pub launch_at_login: bool,
@@ -50,6 +59,8 @@ pub struct Settings {
     /// itself; the app then leaves them alone until they are picked or added again.
     #[serde(deserialize_with = "skip_bad_entries")]
     pub forgotten_wifi: Vec<String>,
+    /// Write a detailed log to a file for bug reports (see `crate::diag`).
+    pub detailed_log: bool,
 }
 
 /// A list where entries that do not parse are dropped, rather than the whole settings file.
@@ -83,7 +94,9 @@ impl Default for Settings {
             onboarding_done: false,
             facing: "back".into(),
             camera_id: None,
-            quality: Quality::Standard,
+            fps: 30,
+            allow_high_speed: false,
+            quality: None,
             mirror: false,
             rotation: 0,
             color: ColorAdjust::default(),
@@ -100,6 +113,7 @@ impl Default for Settings {
             phone: None,
             wifi_phones: Vec::new(),
             forgotten_wifi: Vec::new(),
+            detailed_log: false,
         }
     }
 }
@@ -134,6 +148,17 @@ impl Settings {
         let d = Settings::default();
         if !matches!(self.facing.as_str(), "back" | "front") {
             self.facing = d.facing;
+        }
+        match self.quality.take().as_deref() {
+            Some("smooth") => self.fps = 60,
+            // Saver captured 720p; the camera size stays if it was changed from the default.
+            Some("economy") if (self.vcam_width, self.vcam_height) == (d.vcam_width, d.vcam_height) => {
+                (self.vcam_width, self.vcam_height) = (1280, 720)
+            }
+            _ => {}
+        }
+        if !matches!(self.fps, 30 | 60) {
+            self.fps = d.fps;
         }
         if !matches!(self.rotation, 0 | 90 | 180 | 270) {
             self.rotation = 0;
@@ -170,14 +195,19 @@ impl Settings {
         }
     }
 
-    /// Bit rate for the phone's encoder: the user's choice, or one that suits the quality.
+    /// Bit rate for the phone's encoder: the user's choice, or one that suits the resolution
+    /// and frame rate (a third more for 60 fps).
     pub fn bitrate(&self) -> u32 {
-        let mbps = self.bitrate_mbps.unwrap_or(match self.quality {
-            Quality::Economy => 6,
-            Quality::Standard => 12,
-            Quality::Smooth => 16,
-        });
-        mbps * 1_000_000
+        let auto = || {
+            let mbps = match self.vcam_height {
+                ..=720 => 6,
+                ..=1080 => 12,
+                ..=1440 => 20,
+                _ => 32,
+            };
+            if self.fps >= 60 { mbps * 4 / 3 } else { mbps }
+        };
+        self.bitrate_mbps.unwrap_or_else(auto) * 1_000_000
     }
 
     /// Server parameters without the capture mode (size, fps), which depends on the camera.
@@ -222,7 +252,7 @@ mod tests {
     fn roundtrip_and_partial_files() {
         let dir = std::env::temp_dir().join(format!("plugcam-settings-{}", std::process::id()));
         let path = dir.join("settings.json");
-        let mut s = Settings { mirror: true, quality: Quality::Smooth, ..Settings::default() };
+        let mut s = Settings { mirror: true, fps: 60, allow_high_speed: true, ..Settings::default() };
         s.mark_broken("PHK110", "4");
         s.save(&path).unwrap();
         assert_eq!(Settings::load(&path), s);
@@ -285,12 +315,30 @@ mod tests {
     }
 
     #[test]
-    fn bitrate_follows_quality_unless_set() {
+    fn bitrate_follows_resolution_and_fps_unless_set() {
         let mut s = Settings::default();
         assert_eq!(s.bitrate(), 12_000_000);
-        s.quality = Quality::Economy;
+        s.fps = 60;
+        assert_eq!(s.bitrate(), 16_000_000);
+        (s.vcam_width, s.vcam_height, s.fps) = (1280, 720, 30);
         assert_eq!(s.bitrate(), 6_000_000);
+        (s.vcam_width, s.vcam_height) = (3840, 2160);
+        assert_eq!(s.bitrate(), 32_000_000);
         s.bitrate_mbps = Some(25);
         assert_eq!(s.bitrate(), 25_000_000);
+    }
+
+    #[test]
+    fn presets_of_0_1_migrate() {
+        let load = |json: &str| Settings::sanitized(serde_json::from_str(json).unwrap());
+        let s = load(r#"{"quality": "smooth"}"#);
+        assert_eq!((s.fps, s.allow_high_speed, s.vcam_height, s.quality), (60, false, 1080, None));
+        let s = load(r#"{"quality": "economy"}"#);
+        assert_eq!((s.fps, s.vcam_width, s.vcam_height), (30, 1280, 720));
+        let s = load(r#"{"quality": "economy", "vcamWidth": 3840, "vcamHeight": 2160}"#);
+        assert_eq!(s.vcam_height, 2160);
+        let s = load(r#"{"quality": "standard", "fps": 45}"#);
+        assert_eq!((s.fps, s.vcam_height), (30, 1080));
+        assert!(!serde_json::to_string(&s).unwrap().contains("quality"));
     }
 }

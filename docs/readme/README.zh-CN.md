@@ -29,7 +29,7 @@
 
 - **手机上什么都不用装。** Plugcam 通过 USB 调试与手机通信，只在传输期间在手机上运行 [scrcpy](https://github.com/Genymobile/scrcpy) 的摄像头部分。
 - **真正的 Windows 摄像头。** “Plugcam Camera”会和其他摄像头一起出现在使用 DirectShow 的软件和浏览器中：Zoom、Discord、Telegram Desktop、OBS、Chrome、Edge、Firefox，因此也能用于 Google Meet 等网页通话。
-- **画质好。** 最高 1080p 30 帧/秒，支持的手机可达 60 帧/秒。手机用硬件编码 H.264，电脑的显卡芯片负责解码，电脑几乎没有负担。
+- **画质好。** 最高 4K（取决于手机摄像头能拍到的分辨率），30 帧/秒，支持的手机可达 60 帧/秒。手机用硬件编码 H.264，电脑的显卡芯片负责解码，电脑几乎没有负担。
 - **该有的控制都有。** 后置或前置摄像头及各个镜头、1×/2×/5× 变焦、手电筒、竖放手机时的画面旋转、镜像，以及亮度、对比度、饱和度和色温。
 - **永久免费。** 没有水印、没有时长限制、无需账号、没有遥测。Apache-2.0 许可。
 - **轻巧。** 下载仅 7.4 MB。在托盘中待命时只占 7 MB 内存；从托盘传输画面时，CPU 占用不到 1%。更新一键即可自动安装。
@@ -42,17 +42,17 @@
 | | Plugcam | [DroidCam](https://droidcam.app/) | [Iriun](https://iriun.com/) | [iVCam](https://www.e2esoft.com/ivcam/) | [Camo](https://camo.com/pricing) | [Phone Link](https://support.microsoft.com/en-us/windows/apps/phonelink/use-your-mobile-device-s-camera) |
 |---|---|---|---|---|---|---|
 | 手机端应用 | **不需要** | 需要 | 需要 | 需要 | 需要 | Link to Windows |
-| 免费版画质 | **1080p，30 或 60 帧/秒** | 640×480；HD 有水印 | 最高 4K，有水印 | 有水印；试用期后 640×480 | 最高 720p | 720p |
+| 免费版画质 | **最高 4K，30 或 60 帧/秒** | 640×480；HD 有水印 | 最高 4K，有水印 | 有水印；试用期后 640×480 | 最高 720p | 720p |
 | 广告 | **无** | 有 | 有 | 有 | 无 | 无 |
 | 连接方式 | USB | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | Wi-Fi + 蓝牙 |
 | 开源 | **是，Apache-2.0** | 仅电脑客户端 | 否 | 否 | 否 | 否 |
 | Windows 下载大小 | **7.4 MB** | 98 MB | 8.8 MB，需要 .NET Desktop Runtime | 约 43 MB | 约 475 MB | Windows 11 内置 |
 
-你可能已经有两种无需安装应用的办法：Android 14 及更高版本的手机，如果厂商开启了这一模式（Pixel 已开启），本身就能当作 USB 摄像头；Plugcam 所基于的 [scrcpy](https://github.com/Genymobile/scrcpy) 也能在窗口中显示摄像头画面（在 Windows 上需要借助 OBS 才能把这个窗口变成摄像头）。与付费应用相比，Plugcam 目前还缺少 Wi-Fi、4K 和声音。
+你可能已经有两种无需安装应用的办法：Android 14 及更高版本的手机，如果厂商开启了这一模式（Pixel 已开启），本身就能当作 USB 摄像头；Plugcam 所基于的 [scrcpy](https://github.com/Genymobile/scrcpy) 也能在窗口中显示摄像头画面（在 Windows 上需要借助 OBS 才能把这个窗口变成摄像头）。与付费应用相比，Plugcam 目前还缺少 Wi-Fi 和声音。
 
 ### 其他开源项目
 
-在这些项目中，只有 Plugcam 能在手机上什么都不装、中间也不经过 OBS 的情况下为 Windows 提供摄像头。其他项目也有 Plugcam 没有的功能：Wi-Fi、4K、支持更旧的 Android 版本，或者（BestCam）Microsoft Store 应用也能看到的摄像头。信息于 2026 年 9 月依据各项目的 README 核对。Plugcam 所基于的 scrcpy 是命令行工具，Plugcam 把它的摄像头模式做成了带预览和控制项的应用。
+在这些项目中，只有 Plugcam 能在手机上什么都不装、中间也不经过 OBS 的情况下为 Windows 提供摄像头。其他项目也有 Plugcam 没有的功能：Wi-Fi、支持更旧的 Android 版本，或者（BestCam）Microsoft Store 应用也能看到的摄像头。信息于 2026 年 9 月依据各项目的 README 核对。Plugcam 所基于的 scrcpy 是命令行工具，Plugcam 把它的摄像头模式做成了带预览和控制项的应用。
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam)（alpha） | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -126,7 +126,7 @@ Plugcam 通过 adb 与手机通信，adb 另占约 2 MB，并与你运行的其�
 
 ### 有没有免费开源的 DroidCam、Iriun 或 iVCam 替代品？
 
-Plugcam 就是一个。它以 Apache-2.0 许可开源，提供 1080p 30 帧/秒的画面，支持的手机可达 60 帧/秒，没有水印、没有广告、没有时长限制，也无需账号。这些应用有而 Plugcam 暂时还没有的：Wi-Fi、4K 和声音。参见[与同类软件对比](#与同类软件对比)。
+Plugcam 就是一个。它以 Apache-2.0 许可开源，提供最高 4K、30 帧/秒的画面，支持的手机可达 60 帧/秒，没有水印、没有广告、没有时长限制，也无需账号。这些应用有而 Plugcam 暂时还没有的：Wi-Fi 和声音。参见[与同类软件对比](#与同类软件对比)。
 
 ### 哪些软件能用 Plugcam Camera？
 
@@ -150,7 +150,7 @@ Plugcam 就是一个。它以 Apache-2.0 许可开源，提供 1080p 30 帧/秒�
 
 ### Plugcam 支持哪些安卓手机？
 
-Plugcam 需要 Android 12 或更高版本，因为 scrcpy 从 Android 12 起才能采集摄像头。它基于 OnePlus 11R（Android 15）和 Chrome 开发并测试，其他手机应该也能正常工作。有些手机会列出一些不向第三方应用输出画面的镜头；Plugcam 会发现这种情况，隐藏该镜头并切换到主摄。如果你的手机或软件无法正常工作，请[提交 issue](https://github.com/Qwinty/plugcam/issues)，并注明手机型号和软件。
+Plugcam 需要 Android 12 或更高版本，因为 scrcpy 从 Android 12 起才能采集摄像头。它基于 OnePlus 11R（Android 15）和 Chrome 开发并测试，其他手机应该也能正常工作。有些手机会列出一些不向第三方应用输出画面的镜头；Plugcam 会发现这种情况，隐藏该镜头并切换到主摄。如果你的手机或软件无法正常工作，请[提交 issue](https://github.com/Qwinty/plugcam/issues)，并注明手机型号和软件。在 Plugcam 中，**设置 → 诊断 → 保存报告** 会生成一个可附加的文件。
 
 工作原理、从源码构建和许可证信息，请参阅[英文 README](../../README.md)。
 

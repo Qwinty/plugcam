@@ -53,14 +53,27 @@
     }
   }
 
-  const s = $derived(snap.settings);
-  const sizes = [
-    [1280, 720],
-    [1920, 1080],
-    [2560, 1440],
-    [3840, 2160],
-  ] as const;
+  let reportState = $state<"idle" | "saving" | "saved" | "failed">("idle");
+  let reportName = $state("");
+  async function saveReport() {
+    reportState = "saving";
+    try {
+      const path = await api.saveReport();
+      reportName = path.split(/[\\/]/).pop() ?? path;
+      reportState = "saved";
+    } catch {
+      reportState = "failed";
+    }
+  }
+  const reportLine = $derived(
+    reportState === "saved"
+      ? t("set.report.saved", { name: reportName })
+      : reportState === "failed"
+        ? t("set.report.failed")
+        : t("set.report.hint"),
+  );
 
+  const s = $derived(snap.settings);
   // The slider only sends its value when released, so dragging does not restart the stream.
   let bitrateDraft = $state<number | null>(null);
   const bitrate = $derived(bitrateDraft ?? s.bitrateMbps ?? 12);
@@ -90,23 +103,6 @@
   </section>
 
   <section class="section">
-    <h2>{t("set.vcam")}</h2>
-    <div class="card">
-      <div class="row stacked">
-        <span class="row-text"><span>{t("set.resolution")}</span><span class="row-hint">{t("set.resolution.hint")}</span></span>
-        <Select
-          label={t("set.resolution")}
-          value={`${s.vcamWidth}x${s.vcamHeight}`}
-          onchange={(v) => {
-            const [w, h] = v.split("x").map(Number);
-            api.updateSettings({ vcamWidth: w, vcamHeight: h });
-          }}
-          options={sizes.map(([w, h]) => ({ value: `${w}x${h}`, label: `${w} × ${h}` }))} />
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
     <h2>{t("set.video")}</h2>
     <div class="card">
       <Toggle
@@ -130,6 +126,13 @@
             }} />
           <span class="value">{t("set.mbps", { v: bitrate })}</span>
         </div>
+      {/if}
+      {#if snap.highSpeedOffered || s.allowHighSpeed}
+        <Toggle
+          label={t("set.highSpeed")}
+          hint={t("set.highSpeed.hint")}
+          checked={s.allowHighSpeed}
+          onchange={(v) => api.updateSettings({ allowHighSpeed: v })} />
       {/if}
     </div>
   </section>
@@ -169,6 +172,31 @@
           </button>
         {/if}
       </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>{t("set.diag")}</h2>
+    <div class="card">
+      <Toggle
+        label={t("set.detailedLog")}
+        hint={t("set.detailedLog.hint")}
+        checked={s.detailedLog}
+        onchange={(v) => api.updateSettings({ detailedLog: v })} />
+      <div class="row">
+        <span class="row-text">
+          <span>{t("set.report")}</span>
+          <span class="row-hint" class:accent={reportState === "saved"} class:error={reportState === "failed"}>{reportLine}</span>
+        </span>
+        <button class="btn small" disabled={reportState === "saving"} onclick={saveReport}>
+          {#if reportState === "saving"}<LoaderCircle size={16} class="spin" />{/if}
+          {t("set.report.save")}
+        </button>
+      </div>
+      <button class="row link" onclick={() => api.openLogFolder()}>
+        <span>{t("set.logFolder")}</span>
+        <ChevronRight size={16} />
+      </button>
     </div>
   </section>
 
@@ -216,12 +244,6 @@
     font-weight: 600;
     line-height: 1.2;
   }
-  .row.stacked {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 12px;
-  }
   .slider {
     padding-inline-end: 12px;
   }
@@ -259,6 +281,9 @@
   }
   .row-hint.accent {
     color: var(--accent-text);
+  }
+  .row-hint.error {
+    color: var(--error);
   }
   .btn.small {
     flex: none;

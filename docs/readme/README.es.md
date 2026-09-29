@@ -29,7 +29,7 @@
 
 - **No hay que instalar nada en el teléfono.** Plugcam habla con el teléfono mediante la depuración USB y ejecuta en él la parte de cámara de [scrcpy](https://github.com/Genymobile/scrcpy) mientras transmites.
 - **Una webcam de verdad para Windows.** «Plugcam Camera» aparece junto a tus otras cámaras en los programas y navegadores que usan DirectShow: Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge, Firefox y, por tanto, también en llamadas web como Google Meet.
-- **Buena imagen.** Hasta 1080p a 30 fps, o 60 fps en teléfonos compatibles. El teléfono codifica H.264 por hardware y el chip gráfico del PC lo decodifica, así que el PC apenas lo nota.
+- **Buena imagen.** Hasta 4K, si la cámara del teléfono lo capta, a 30 fps, o 60 fps en teléfonos compatibles. El teléfono codifica H.264 por hardware y el chip gráfico del PC lo decodifica, así que el PC apenas lo nota.
 - **Todos los controles que esperas.** Cámara trasera o frontal y cada lente, zoom con 1×/2×/5×, linterna, rotación para un teléfono en vertical, imagen en espejo, y brillo, contraste, saturación y calidez.
 - **Gratis para siempre.** Sin marcas de agua, sin límite de tiempo, sin cuenta, sin telemetría. Apache-2.0.
 - **Ligero.** Una descarga de 7,4 MB. En la bandeja ocupa 7 MB de memoria; transmitiendo desde ahí, menos del 1 % de la CPU. Las actualizaciones se instalan solas con un clic.
@@ -42,17 +42,17 @@ Las apps que la gente suele probar primero, a septiembre de 2026. Los planes gra
 | | Plugcam | [DroidCam](https://droidcam.app/) | [Iriun](https://iriun.com/) | [iVCam](https://www.e2esoft.com/ivcam/) | [Camo](https://camo.com/pricing) | [Phone Link](https://support.microsoft.com/en-us/windows/apps/phonelink/use-your-mobile-device-s-camera) |
 |---|---|---|---|---|---|---|
 | App en el teléfono | **ninguna** | sí | sí | sí | sí | Link to Windows |
-| Imagen gratis | **1080p, 30 o 60 fps** | 640×480; HD con marca de agua | hasta 4K, con marca de agua | marca de agua; 640×480 tras la prueba | hasta 720p | 720p |
+| Imagen gratis | **hasta 4K, 30 o 60 fps** | 640×480; HD con marca de agua | hasta 4K, con marca de agua | marca de agua; 640×480 tras la prueba | hasta 720p | 720p |
 | Anuncios | **no** | sí | sí | sí | no | no |
 | Conexión | USB | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | Wi-Fi + Bluetooth |
 | Código abierto | **sí, Apache-2.0** | solo el cliente de PC | no | no | no | no |
 | Descarga para Windows | **7,4 MB** | 98 MB | 8,8 MB, necesita .NET Desktop Runtime | unos 43 MB | unos 475 MB | incluido en Windows 11 |
 
-Dos opciones sin app que quizá ya tengas: los teléfonos con Android 14 o posterior pueden funcionar por sí solos como webcam USB si el fabricante activó ese modo (los Pixel lo hacen), y [scrcpy](https://github.com/Genymobile/scrcpy), en el que se basa Plugcam, muestra la cámara en una ventana (en Windows necesitas OBS para convertir esa ventana en una webcam). Lo que aún le falta a Plugcam frente a las apps de pago: Wi-Fi, 4K y sonido.
+Dos opciones sin app que quizá ya tengas: los teléfonos con Android 14 o posterior pueden funcionar por sí solos como webcam USB si el fabricante activó ese modo (los Pixel lo hacen), y [scrcpy](https://github.com/Genymobile/scrcpy), en el que se basa Plugcam, muestra la cámara en una ventana (en Windows necesitas OBS para convertir esa ventana en una webcam). Lo que aún le falta a Plugcam frente a las apps de pago: Wi-Fi y sonido.
 
 ### Otros proyectos de código abierto
 
-De todos ellos, solo Plugcam le da a Windows una webcam sin instalar nada en el teléfono y sin OBS de por medio. Los demás tienen cosas que Plugcam no tiene: Wi-Fi, 4K, compatibilidad con versiones más antiguas de Android o (BestCam) una cámara que ven las apps de Microsoft Store. Comprobado con el README de cada proyecto en septiembre de 2026. scrcpy, en el que se basa Plugcam, se usa desde la línea de comandos; Plugcam convierte su modo de cámara en una app con vista previa y controles.
+De todos ellos, solo Plugcam le da a Windows una webcam sin instalar nada en el teléfono y sin OBS de por medio. Los demás tienen cosas que Plugcam no tiene: Wi-Fi, compatibilidad con versiones más antiguas de Android o (BestCam) una cámara que ven las apps de Microsoft Store. Comprobado con el README de cada proyecto en septiembre de 2026. scrcpy, en el que se basa Plugcam, se usa desde la línea de comandos; Plugcam convierte su modo de cámara en una app con vista previa y controles.
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (alfa) | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
@@ -126,7 +126,7 @@ Eso es justo lo que hace Plugcam. Mientras transmites, ejecuta en el teléfono l
 
 ### ¿Hay alguna alternativa gratis y de código abierto a DroidCam, Iriun o iVCam?
 
-Plugcam es una. Es de código abierto con licencia Apache-2.0 y da 1080p a 30 fps, o 60 fps en teléfonos compatibles, sin marca de agua, anuncios, límite de tiempo ni cuenta. Lo que esas apps tienen y Plugcam aún no: Wi-Fi, 4K y sonido. Consulta la [Comparación](#comparación).
+Plugcam es una. Es de código abierto con licencia Apache-2.0 y da hasta 4K a 30 fps, o 60 fps en teléfonos compatibles, sin marca de agua, anuncios, límite de tiempo ni cuenta. Lo que esas apps tienen y Plugcam aún no: Wi-Fi y sonido. Consulta la [Comparación](#comparación).
 
 ### ¿Qué apps pueden usar Plugcam Camera?
 
@@ -150,7 +150,7 @@ No, Plugcam necesita un teléfono Android y Windows. En Linux, el propio scrcpy 
 
 ### ¿Con qué móviles Android funciona Plugcam?
 
-Plugcam necesita Android 12 o posterior, porque scrcpy solo puede capturar la cámara a partir de Android 12. Se hizo y se probó con un OnePlus 11R (Android 15) y Chrome; otros teléfonos deberían funcionar igual. Algunos teléfonos listan lentes que no transmiten a apps de terceros; Plugcam lo detecta, oculta esa lente y cambia a la cámara principal. Si tu teléfono o tu app no funciona, [abre un issue](https://github.com/Qwinty/plugcam/issues) con el modelo del teléfono y la app.
+Plugcam necesita Android 12 o posterior, porque scrcpy solo puede capturar la cámara a partir de Android 12. Se hizo y se probó con un OnePlus 11R (Android 15) y Chrome; otros teléfonos deberían funcionar igual. Algunos teléfonos listan lentes que no transmiten a apps de terceros; Plugcam lo detecta, oculta esa lente y cambia a la cámara principal. Si tu teléfono o tu app no funciona, [abre un issue](https://github.com/Qwinty/plugcam/issues) con el modelo del teléfono y la app. En Plugcam, **Ajustes → Diagnóstico → Guardar informe** crea un archivo para adjuntarlo.
 
 Cómo funciona, cómo compilarlo y las licencias: en el [README en inglés](../../README.md).
 
