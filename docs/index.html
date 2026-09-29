@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Plugcam: use your Android phone as a webcam on Windows (free, open source)</title>
-<meta name="description" content="Plugcam turns an Android phone into a Windows webcam over USB. No app on the phone, no OBS, no watermarks. Free and open source (Apache-2.0), built on scrcpy. An alternative to DroidCam, Iriun and iVCam.">
+<meta name="description" content="Plugcam turns an Android phone into a Windows webcam over USB or Wi-Fi. No app on the phone, no OBS, no watermarks. Free and open source (Apache-2.0), built on scrcpy. An alternative to DroidCam, Iriun and iVCam.">
 <link rel="canonical" href="https://qwinty.github.io/plugcam/">
 <meta name="google-site-verification" content="JsM0jPOwlgjejLhl3chcfUR6Yp575hIL9GSVrpSKo5g">
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
@@ -14,7 +14,7 @@
 <meta name="theme-color" content="#131417" media="(prefers-color-scheme: dark)">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Plugcam: your Android phone as a Windows webcam">
-<meta property="og:description" content="One cable, one button. No app on the phone, no OBS, no watermarks. Free and open source.">
+<meta property="og:description" content="USB or Wi-Fi, one button. No app on the phone, no OBS, no watermarks. Free and open source.">
 <meta property="og:url" content="https://qwinty.github.io/plugcam/">
 <meta property="og:image" content="https://qwinty.github.io/plugcam/screenshots/main-light-en.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -23,11 +23,11 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Plugcam",
-  "description": "Turns an Android phone into a Windows webcam over USB, with no app on the phone, no OBS and no watermarks. Built on scrcpy.",
+  "description": "Turns an Android phone into a Windows webcam over USB or Wi-Fi, with no app on the phone, no OBS and no watermarks. Built on scrcpy.",
   "applicationCategory": "MultimediaApplication",
   "operatingSystem": "Windows 10, Windows 11",
-  "softwareVersion": "0.1.0",
-  "fileSize": "7.4 MB",
+  "softwareVersion": "0.2.0",
+  "fileSize": "7.2 MB",
   "downloadUrl": "https://github.com/Qwinty/plugcam/releases/latest",
   "url": "https://qwinty.github.io/plugcam/",
   "sameAs": "https://github.com/Qwinty/plugcam",
@@ -174,12 +174,12 @@ footer a { color: var(--muted); }
     <div class="hero">
       <img class="logo" src="assets/icon.svg" alt="" width="88" height="88">
       <h1>Your Android phone as a Windows webcam</h1>
-      <p class="lede">One USB cable, one button. No app on the phone, no OBS, no watermarks. Plugcam is a free, open-source alternative to DroidCam, Iriun and iVCam, built on scrcpy.</p>
+      <p class="lede">USB cable or Wi-Fi, one button. No app on the phone, no OBS, no watermarks. Plugcam is a free, open-source alternative to DroidCam, Iriun and iVCam, built on scrcpy.</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/Qwinty/plugcam/releases/latest">Download for Windows</a>
         <a class="btn" href="https://github.com/Qwinty/plugcam">Source on GitHub</a>
       </div>
-      <p class="meta">Version 0.1.0 · 7.4 MB · Windows 10 and 11 · Android 12 or newer · Apache-2.0</p>
+      <p class="meta">Version 0.2.0 · 7.2 MB · Windows 10 and 11 · Android 12 or newer · Apache-2.0</p>
     </div>
 
     <div class="shot">
@@ -194,21 +194,23 @@ footer a { color: var(--muted); }
       <p class="sub">"Plugcam Camera" shows up next to your other cameras in Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge and Firefox, so browser calls such as Google Meet work too.</p>
       <div class="facts">
         <div class="fact"><b>Nothing on the phone</b><span>Plugcam runs the camera part of scrcpy over USB debugging while you stream and removes it when you stop. No APK, no root.</span></div>
+        <div class="fact"><b>USB or Wi-Fi</b><span>Pair the phone once by QR code or a six-digit code, or move it from the cable with one click. It then connects by itself, and reconnects if the network drops.</span></div>
         <div class="fact"><b>Up to 4K, 30 or 60 fps</b><span>4K if the phone's camera captures it, 60 fps on phones that support it. The phone encodes H.264 in hardware and your PC's graphics chip decodes it.</span></div>
         <div class="fact"><b>Light on your PC</b><span>7 MB of memory waiting in the tray, under 1% of the CPU streaming from there.</span></div>
-        <div class="fact"><b>Free for good</b><span>No watermarks, ads, time limits, account or telemetry. The video never leaves your PC.</span></div>
+        <div class="fact"><b>Free for good</b><span>No watermarks, ads, time limits, account or telemetry. The video never leaves your PC and your local network.</span></div>
         <div class="fact"><b>Full camera controls</b><span>Front or back camera and each lens, zoom, flashlight, rotation, mirror, brightness, contrast, saturation and warmth.</span></div>
+        <div class="fact"><b>Updates itself</b><span>Installer or portable zip. A new version is one click away, and every update is signed.</span></div>
         <div class="fact"><b>13 languages</b><span>English, Deutsch, Español, Français, Italiano, Polski, Português, Türkçe, Українська, Русский, 日本語, 한국어, 简体中文.</span></div>
       </div>
     </section>
 
     <section id="start">
       <h2>Get started</h2>
-      <p class="sub">The first time takes three steps. After that, plug in and press one button.</p>
+      <p class="sub">The first time takes three steps. After that, plug in, or just be on the same Wi-Fi, and press one button.</p>
       <ol class="steps">
         <li><b>Install Plugcam</b><span>Run the installer from the <a href="https://github.com/Qwinty/plugcam/releases/latest">latest release</a>, or unpack the portable zip. Windows asks for administrator rights once, to add the camera.</span></li>
         <li><b>Turn on USB debugging</b><span>On the phone: Settings → About phone, tap Build number seven times, then Developer options → USB debugging. Plugcam's first-run guide shows the way.</span></li>
-        <li><b>Plug in and stream</b><span>Tap Allow on the phone and press Turn camera on. In your video app, pick Plugcam Camera.</span></li>
+        <li><b>Plug in and stream</b><span>Tap Allow on the phone and press Turn camera on. In your video app, pick Plugcam Camera. For Wi-Fi, open Phones and Wi-Fi in the side panel and pair the phone by QR code or pairing code, or press From cable.</span></li>
       </ol>
     </section>
 
@@ -224,16 +226,16 @@ footer a { color: var(--muted); }
             <tr><th>App on the phone</th><td class="us">none</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td><td>Link to Windows</td></tr>
             <tr><th>Free picture</th><td class="us">up to 4K, 30 or 60 fps</td><td>640×480; HD has a watermark</td><td>up to 4K, with a watermark</td><td>watermark; 640×480 after the trial</td><td>up to 720p</td><td>720p</td></tr>
             <tr><th>Ads</th><td class="us">none</td><td>yes</td><td>yes</td><td>yes</td><td>none</td><td>none</td></tr>
-            <tr><th>Connection</th><td class="us">USB</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>Wi-Fi + Bluetooth</td></tr>
+            <tr><th>Connection</th><td class="us">USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>Wi-Fi + Bluetooth</td></tr>
             <tr><th>Open source</th><td class="us">yes, Apache-2.0</td><td>PC client only</td><td>no</td><td>no</td><td>no</td><td>no</td></tr>
-            <tr><th>Windows download</th><td class="us">7.4 MB</td><td>98 MB</td><td>8.8 MB, needs .NET Desktop Runtime</td><td>about 43 MB</td><td>about 475 MB</td><td>built into Windows 11</td></tr>
+            <tr><th>Windows download</th><td class="us">7.2 MB</td><td>98 MB</td><td>8.8 MB, needs .NET Desktop Runtime</td><td>about 43 MB</td><td>about 475 MB</td><td>built into Windows 11</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="note">What Plugcam still lacks next to the paid apps: Wi-Fi and sound.</p>
+      <p class="note">What Plugcam still lacks next to the paid apps: sound.</p>
 
       <h2 style="margin-top:40px">Other open-source projects</h2>
-      <p class="sub">Of these, only Plugcam gives Windows a webcam with nothing installed on the phone and no OBS in between. The others have things Plugcam doesn't: Wi-Fi, older Android versions, or (BestCam) a camera that Microsoft Store apps can see. scrcpy, which Plugcam builds on, is a command-line tool; Plugcam puts its camera mode into an app with a preview and controls. Checked against each project's README in September 2026.</p>
+      <p class="sub">Of these, only Plugcam gives Windows a webcam with nothing installed on the phone and no OBS in between. The others have things Plugcam doesn't: older Android versions, or (BestCam) a camera that Microsoft Store apps can see. scrcpy, which Plugcam builds on, is a command-line tool; Plugcam puts its camera mode into an app with a preview and controls. Checked against each project's README in September 2026.</p>
       <div class="table">
         <table>
           <thead>
@@ -242,7 +244,7 @@ footer a { color: var(--muted); }
           <tbody>
             <tr><th>App on the phone</th><td class="us">none</td><td>yes</td><td>yes</td><td>yes</td><td>none</td></tr>
             <tr><th>Webcam on Windows</th><td class="us">yes, DirectShow</td><td>yes, DirectShow</td><td>yes</td><td>yes, Media Foundation (Windows 11 22H2+)</td><td>through OBS or another window-capture tool; a webcam on Linux</td></tr>
-            <tr><th>Connection</th><td class="us">USB</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB</td><td>USB, Wi-Fi</td></tr>
+            <tr><th>Connection</th><td class="us">USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB, Wi-Fi</td><td>USB</td><td>USB, Wi-Fi</td></tr>
             <tr><th>Android</th><td class="us">12+</td><td>7.0+</td><td>8.0+</td><td>8.0+</td><td>12+ for the camera</td></tr>
             <tr><th>On the PC</th><td class="us">app with a preview, controls and a first-run guide</td><td>app</td><td>app</td><td>Python script; app announced</td><td>command line; the window shows only the video</td></tr>
             <tr><th>Install</th><td class="us">installer or portable zip; updates itself</td><td>zip, then install.bat as administrator</td><td>installer</td><td>zip, no installer</td><td>zip or winget</td></tr>
@@ -262,7 +264,7 @@ footer a { color: var(--muted); }
         </div>
         <div>
           <h3>Is there a free, open-source alternative to DroidCam, Iriun or iVCam?</h3>
-          <p>Plugcam is one. It is open source under Apache-2.0 and gives up to 4K at 30 fps, or 60 fps on phones that support it, with no watermark, ads, time limit or account. What those apps have and Plugcam doesn't yet: Wi-Fi and sound. See <a href="#compare">How it compares</a>.</p>
+          <p>Plugcam is one. It is open source under Apache-2.0 and gives up to 4K at 30 fps, or 60 fps on phones that support it, over USB or Wi-Fi, with no watermark, ads, time limit or account. What those apps have and Plugcam doesn't yet: sound. See <a href="#compare">How it compares</a>.</p>
         </div>
         <div>
           <h3>Which apps can use Plugcam Camera?</h3>
@@ -274,7 +276,7 @@ footer a { color: var(--muted); }
         </div>
         <div>
           <h3>Does Plugcam work over Wi-Fi?</h3>
-          <p>Not yet, only over a USB cable. Wi-Fi is next on the list.</p>
+          <p>Yes, since version 0.2.0. Open Phones and Wi-Fi and pair the phone once by QR code or a six-digit code from Developer options → Wireless debugging, or press From cable to move a phone that is on the cable to Wi-Fi. Paired phones connect by themselves when they show up on the network. Over Wi-Fi the picture never falls more than about half a second behind: Plugcam skips ahead instead of letting the delay pile up, and lowers the bit rate if the network can't keep up.</p>
         </div>
         <div>
           <h3>Does Plugcam send sound?</h3>
@@ -290,7 +292,7 @@ footer a { color: var(--muted); }
         </div>
         <div>
           <h3>Is it safe?</h3>
-          <p>Plugcam has no servers and sends nothing anywhere: the video goes from the phone to your PC over the cable and stays there. The only thing it fetches is the list of releases on GitHub, once a day, to check for updates, and you can turn that off. The source is on <a href="https://github.com/Qwinty/plugcam">GitHub</a>.</p>
+          <p>Plugcam has no servers and sends nothing anywhere: the video goes from the phone to your PC over the cable or your local network and stays there. The only thing it fetches is the list of releases on GitHub, once a day, to check for updates, and you can turn that off. The source is on <a href="https://github.com/Qwinty/plugcam">GitHub</a>.</p>
         </div>
       </div>
     </section>

@@ -20,13 +20,15 @@ function Entry($file) {
     @{ url = "$BaseUrl/$([uri]::EscapeDataString((Split-Path $file -Leaf)))"; signature = (Get-Content "$file.sig" -Raw).Trim() }
 }
 
-$installer = Get-ChildItem "$bundle\nsis\*-setup.exe" | Select-Object -First 1
-$portable = Get-ChildItem "$bundle\portable\*-portable.zip" | Select-Object -First 1
-if (-not $installer -or -not $portable) { throw 'build the installer and the portable zip first' }
+# By version: the bundle folder keeps the installers of earlier builds too.
+$version = $Tag.TrimStart('v')
+$installer = Get-Item "$bundle\nsis\Plugcam_${version}_x64-setup.exe" -ErrorAction SilentlyContinue
+$portable = Get-Item "$bundle\portable\Plugcam_${version}_x64-portable.zip" -ErrorAction SilentlyContinue
+if (-not $installer -or -not $portable) { throw "build the $version installer and portable zip first" }
 
 $notesFile = "$root\docs\releases\$Tag.md"
 $manifest = [ordered]@{
-    version   = $Tag.TrimStart('v')
+    version   = $version
     notes     = if (Test-Path $notesFile) { Get-Content $notesFile -Raw -Encoding utf8 } else { '' }
     pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     platforms = [ordered]@{

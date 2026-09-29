@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Tu teléfono Android como webcam para Windows.</b><br>
-  Un cable, un botón. Sin app en el teléfono, sin OBS, sin marcas de agua.<br>
+  USB o Wi-Fi, un botón. Sin app en el teléfono, sin OBS, sin marcas de agua.<br>
   Una alternativa gratis y de código abierto a DroidCam, Iriun e iVCam.
 </p>
 
@@ -28,11 +28,12 @@
 ## Por qué Plugcam
 
 - **No hay que instalar nada en el teléfono.** Plugcam habla con el teléfono mediante la depuración USB y ejecuta en él la parte de cámara de [scrcpy](https://github.com/Genymobile/scrcpy) mientras transmites.
+- **USB o Wi-Fi.** Vincula el teléfono una vez con un código QR o un código de seis dígitos, o pasa a Wi-Fi con un clic un teléfono conectado por cable. Después se conecta solo cada vez que está en la red, y si la red se cae un momento, Plugcam vuelve a conectarse mientras las apps mantienen la última imagen.
 - **Una webcam de verdad para Windows.** «Plugcam Camera» aparece junto a tus otras cámaras en los programas y navegadores que usan DirectShow: Zoom, Discord, Telegram Desktop, OBS, Chrome, Edge, Firefox y, por tanto, también en llamadas web como Google Meet.
 - **Buena imagen.** Hasta 4K, si la cámara del teléfono lo capta, a 30 fps, o 60 fps en teléfonos compatibles. El teléfono codifica H.264 por hardware y el chip gráfico del PC lo decodifica, así que el PC apenas lo nota.
 - **Todos los controles que esperas.** Cámara trasera o frontal y cada lente, zoom con 1×/2×/5×, linterna, rotación para un teléfono en vertical, imagen en espejo, y brillo, contraste, saturación y calidez.
 - **Gratis para siempre.** Sin marcas de agua, sin límite de tiempo, sin cuenta, sin telemetría. Apache-2.0.
-- **Ligero.** Una descarga de 7,4 MB. En la bandeja ocupa 7 MB de memoria; transmitiendo desde ahí, menos del 1 % de la CPU. Las actualizaciones se instalan solas con un clic.
+- **Ligero.** Una descarga de 7,2 MB. En la bandeja ocupa 7 MB de memoria; transmitiendo desde ahí, menos del 1 % de la CPU. Las actualizaciones se instalan solas con un clic.
 - **Habla tu idioma.** 13 idiomas, incluido el español.
 
 ## Comparación
@@ -44,21 +45,21 @@ Las apps que la gente suele probar primero, a septiembre de 2026. Los planes gra
 | App en el teléfono | **ninguna** | sí | sí | sí | sí | Link to Windows |
 | Imagen gratis | **hasta 4K, 30 o 60 fps** | 640×480; HD con marca de agua | hasta 4K, con marca de agua | marca de agua; 640×480 tras la prueba | hasta 720p | 720p |
 | Anuncios | **no** | sí | sí | sí | no | no |
-| Conexión | USB | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | Wi-Fi + Bluetooth |
+| Conexión | **USB, Wi-Fi** | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | Wi-Fi + Bluetooth |
 | Código abierto | **sí, Apache-2.0** | solo el cliente de PC | no | no | no | no |
-| Descarga para Windows | **7,4 MB** | 98 MB | 8,8 MB, necesita .NET Desktop Runtime | unos 43 MB | unos 475 MB | incluido en Windows 11 |
+| Descarga para Windows | **7,2 MB** | 98 MB | 8,8 MB, necesita .NET Desktop Runtime | unos 43 MB | unos 475 MB | incluido en Windows 11 |
 
-Dos opciones sin app que quizá ya tengas: los teléfonos con Android 14 o posterior pueden funcionar por sí solos como webcam USB si el fabricante activó ese modo (los Pixel lo hacen), y [scrcpy](https://github.com/Genymobile/scrcpy), en el que se basa Plugcam, muestra la cámara en una ventana (en Windows necesitas OBS para convertir esa ventana en una webcam). Lo que aún le falta a Plugcam frente a las apps de pago: Wi-Fi y sonido.
+Dos opciones sin app que quizá ya tengas: los teléfonos con Android 14 o posterior pueden funcionar por sí solos como webcam USB si el fabricante activó ese modo (los Pixel lo hacen), y [scrcpy](https://github.com/Genymobile/scrcpy), en el que se basa Plugcam, muestra la cámara en una ventana (en Windows necesitas OBS para convertir esa ventana en una webcam). Lo que aún le falta a Plugcam frente a las apps de pago: sonido.
 
 ### Otros proyectos de código abierto
 
-De todos ellos, solo Plugcam le da a Windows una webcam sin instalar nada en el teléfono y sin OBS de por medio. Los demás tienen cosas que Plugcam no tiene: Wi-Fi, compatibilidad con versiones más antiguas de Android o (BestCam) una cámara que ven las apps de Microsoft Store. Comprobado con el README de cada proyecto en septiembre de 2026. scrcpy, en el que se basa Plugcam, se usa desde la línea de comandos; Plugcam convierte su modo de cámara en una app con vista previa y controles.
+De todos ellos, solo Plugcam le da a Windows una webcam sin instalar nada en el teléfono y sin OBS de por medio. Los demás tienen cosas que Plugcam no tiene: compatibilidad con versiones más antiguas de Android o (BestCam) una cámara que ven las apps de Microsoft Store. Comprobado con el README de cada proyecto en septiembre de 2026. scrcpy, en el que se basa Plugcam, se usa desde la línea de comandos; Plugcam convierte su modo de cámara en una app con vista previa y controles.
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam) (alfa) | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
 | App en el teléfono | ninguna | sí | sí | sí | ninguna |
 | Webcam en Windows | sí, DirectShow | sí, DirectShow | sí | sí, Media Foundation (Windows 11 22H2+) | a través de OBS u otra herramienta de captura de ventanas; webcam en Linux |
-| Conexión | USB | USB, Wi-Fi | USB, Wi-Fi | USB | USB, Wi-Fi |
+| Conexión | USB, Wi-Fi | USB, Wi-Fi | USB, Wi-Fi | USB | USB, Wi-Fi |
 | Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 12+ para la cámara |
 | En el PC | app con vista previa, controles y guía de primer uso | app | app | script de Python; app anunciada | línea de comandos; la ventana solo muestra el vídeo |
 | Instalación | instalador o zip portátil; se actualiza solo | zip y luego install.bat como administrador | instalador | zip, sin instalador | zip o winget |
@@ -86,6 +87,7 @@ adb, a través del cual Plugcam habla con el teléfono, añade unos 2 MB; lo com
 1. **Instala.** Descarga `Plugcam_x.y.z_x64-setup.exe` de la [última versión](https://github.com/Qwinty/plugcam/releases/latest) y ejecútalo. Windows pide permisos de administrador una vez, para registrar la cámara. Después, Plugcam aparece en el menú Inicio. ¿Prefieres no instalarlo? Toma `Plugcam_x.y.z_x64-portable.zip`, descomprímelo donde quieras y ejecuta `Plugcam.exe`; en el primer inicio pide permisos de administrador una vez, para añadir la cámara.
 2. **Activa la depuración USB** en el teléfono: *Ajustes → Información del teléfono*, toca siete veces *Número de compilación* y luego *Ajustes → Sistema → Opciones para desarrolladores → Depuración USB*. La guía inicial de Plugcam te acompaña.
 3. **Conecta el teléfono**, toca *Permitir* en él y pulsa **Encender cámara**. En tu app de vídeo, elige **Plugcam Camera**.
+4. **¿Lo quieres sin cable?** Abre *Teléfonos y Wi-Fi* en el panel lateral y vincula el teléfono con código QR o código de sincronización (*Opciones para desarrolladores → Depuración inalámbrica*), o pulsa *Desde el cable* mientras siga conectado. El teléfono y el PC deben estar en la misma red.
 
 El instalador aún no está firmado, así que SmartScreen puede decir «Windows protegió su PC». Haz clic en *Más información → Ejecutar de todas formas*, o comprueba el archivo con el `.sha256` que lo acompaña en la versión.
 
@@ -115,7 +117,7 @@ El instalador aún no está firmado, así que SmartScreen puede decir «Windows 
 ## Requisitos
 
 - Windows 10 u 11 de 64 bits.
-- Un teléfono con Android 12 o posterior (necesario para capturar la cámara) y un cable USB que transmita datos.
+- Un teléfono con Android 12 o posterior (necesario para capturar la cámara) y un cable USB que transmita datos o la misma red Wi-Fi que el PC.
 - El controlador USB suele llegar por Windows Update. Si no se encuentra el teléfono, instala el [controlador USB de Google](https://developer.android.com/studio/run/win-usb) o el del fabricante.
 
 ## Preguntas frecuentes
@@ -126,7 +128,7 @@ Eso es justo lo que hace Plugcam. Mientras transmites, ejecuta en el teléfono l
 
 ### ¿Hay alguna alternativa gratis y de código abierto a DroidCam, Iriun o iVCam?
 
-Plugcam es una. Es de código abierto con licencia Apache-2.0 y da hasta 4K a 30 fps, o 60 fps en teléfonos compatibles, sin marca de agua, anuncios, límite de tiempo ni cuenta. Lo que esas apps tienen y Plugcam aún no: Wi-Fi y sonido. Consulta la [Comparación](#comparación).
+Plugcam es una. Es de código abierto con licencia Apache-2.0 y da hasta 4K a 30 fps, o 60 fps en teléfonos compatibles, por USB o Wi-Fi, sin marca de agua, anuncios, límite de tiempo ni cuenta. Lo que esas apps tienen y Plugcam aún no: sonido. Consulta la [Comparación](#comparación).
 
 ### ¿Qué apps pueden usar Plugcam Camera?
 
@@ -138,7 +140,7 @@ No. Plugcam registra su propia cámara, así que los programas de vídeo la ven 
 
 ### ¿Plugcam funciona por Wi-Fi?
 
-Todavía no, solo con cable USB. Wi-Fi es lo siguiente.
+Sí, desde la versión 0.2.0. Abre *Teléfonos y Wi-Fi* y vincula el teléfono una vez con un código QR o un código de seis dígitos de *Opciones para desarrolladores → Depuración inalámbrica*, o pulsa *Desde el cable* para pasar a Wi-Fi un teléfono conectado por cable. Los teléfonos vinculados se conectan solos cuando aparecen en la red. Por Wi-Fi, la imagen nunca se queda más de medio segundo atrás, aproximadamente: Plugcam salta hacia delante en lugar de dejar que el retraso se acumule, y baja la tasa de bits si la red no da abasto.
 
 ### ¿Plugcam transmite el sonido?
 
@@ -156,6 +158,6 @@ Cómo funciona, cómo compilarlo y las licencias: en el [README en inglés](../.
 
 ## Privacidad
 
-Plugcam no tiene servidores y no envía nada a ninguna parte. El vídeo va del teléfono al PC por el cable y se queda ahí. Lo único que descarga de internet es la lista de versiones en GitHub, una vez al día, para ver si hay una actualización (se puede desactivar en Ajustes). Los ajustes son un archivo JSON en `%APPDATA%\io.github.plugcam`, o en la carpeta `data` de la versión portable.
+Plugcam no tiene servidores y no envía nada a ninguna parte. El vídeo va del teléfono al PC por el cable o por tu red local y se queda ahí. Lo único que descarga de internet es la lista de versiones en GitHub, una vez al día, para ver si hay una actualización (se puede desactivar en Ajustes). Los ajustes son un archivo JSON en `%APPDATA%\io.github.plugcam`, o en la carpeta `data` de la versión portable.
 
 Licencia: [Apache-2.0](../../LICENSE). Componentes de terceros: [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).
