@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>把安卓手机变成 Windows 摄像头。</b><br>
-  一根数据线，一个按钮。手机上无需安装应用，不用 OBS，没有水印。<br>
+  USB 或 Wi-Fi，一个按钮。手机上无需安装应用，不用 OBS，没有水印。<br>
   免费开源的 DroidCam、Iriun 和 iVCam 替代品。
 </p>
 
@@ -28,11 +28,12 @@
 ## 为什么选择 Plugcam
 
 - **手机上什么都不用装。** Plugcam 通过 USB 调试与手机通信，只在传输期间在手机上运行 [scrcpy](https://github.com/Genymobile/scrcpy) 的摄像头部分。
+- **USB 或 Wi-Fi。** 用二维码或六位配对码配对一次手机，或者一键把已用数据线连接的手机切换到 Wi-Fi。之后只要手机在网络中就会自动连接；网络短暂中断时，Plugcam 会自动重连，其间各应用会一直显示最后一帧画面。
 - **真正的 Windows 摄像头。** “Plugcam Camera”会和其他摄像头一起出现在使用 DirectShow 的软件和浏览器中：Zoom、Discord、Telegram Desktop、OBS、Chrome、Edge、Firefox，因此也能用于 Google Meet 等网页通话。
 - **画质好。** 最高 4K（取决于手机摄像头能拍到的分辨率），30 帧/秒，支持的手机可达 60 帧/秒。手机用硬件编码 H.264，电脑的显卡芯片负责解码，电脑几乎没有负担。
 - **该有的控制都有。** 后置或前置摄像头及各个镜头、1×/2×/5× 变焦、手电筒、竖放手机时的画面旋转、镜像，以及亮度、对比度、饱和度和色温。
 - **永久免费。** 没有水印、没有时长限制、无需账号、没有遥测。Apache-2.0 许可。
-- **轻巧。** 下载仅 7.4 MB。在托盘中待命时只占 7 MB 内存；从托盘传输画面时，CPU 占用不到 1%。更新一键即可自动安装。
+- **轻巧。** 下载仅 7.2 MB。在托盘中待命时只占 7 MB 内存；从托盘传输画面时，CPU 占用不到 1%。更新一键即可自动安装。
 - **支持你的语言。** 13 种语言，包括简体中文。
 
 ## 与同类软件对比
@@ -44,21 +45,21 @@
 | 手机端应用 | **不需要** | 需要 | 需要 | 需要 | 需要 | Link to Windows |
 | 免费版画质 | **最高 4K，30 或 60 帧/秒** | 640×480；HD 有水印 | 最高 4K，有水印 | 有水印；试用期后 640×480 | 最高 720p | 720p |
 | 广告 | **无** | 有 | 有 | 有 | 无 | 无 |
-| 连接方式 | USB | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | Wi-Fi + 蓝牙 |
+| 连接方式 | **USB、Wi-Fi** | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | Wi-Fi + 蓝牙 |
 | 开源 | **是，Apache-2.0** | 仅电脑客户端 | 否 | 否 | 否 | 否 |
-| Windows 下载大小 | **7.4 MB** | 98 MB | 8.8 MB，需要 .NET Desktop Runtime | 约 43 MB | 约 475 MB | Windows 11 内置 |
+| Windows 下载大小 | **7.2 MB** | 98 MB | 8.8 MB，需要 .NET Desktop Runtime | 约 43 MB | 约 475 MB | Windows 11 内置 |
 
-你可能已经有两种无需安装应用的办法：Android 14 及更高版本的手机，如果厂商开启了这一模式（Pixel 已开启），本身就能当作 USB 摄像头；Plugcam 所基于的 [scrcpy](https://github.com/Genymobile/scrcpy) 也能在窗口中显示摄像头画面（在 Windows 上需要借助 OBS 才能把这个窗口变成摄像头）。与付费应用相比，Plugcam 目前还缺少 Wi-Fi 和声音。
+你可能已经有两种无需安装应用的办法：Android 14 及更高版本的手机，如果厂商开启了这一模式（Pixel 已开启），本身就能当作 USB 摄像头；Plugcam 所基于的 [scrcpy](https://github.com/Genymobile/scrcpy) 也能在窗口中显示摄像头画面（在 Windows 上需要借助 OBS 才能把这个窗口变成摄像头）。与付费应用相比，Plugcam 目前还缺少声音。
 
 ### 其他开源项目
 
-在这些项目中，只有 Plugcam 能在手机上什么都不装、中间也不经过 OBS 的情况下为 Windows 提供摄像头。其他项目也有 Plugcam 没有的功能：Wi-Fi、支持更旧的 Android 版本，或者（BestCam）Microsoft Store 应用也能看到的摄像头。信息于 2026 年 9 月依据各项目的 README 核对。Plugcam 所基于的 scrcpy 是命令行工具，Plugcam 把它的摄像头模式做成了带预览和控制项的应用。
+在这些项目中，只有 Plugcam 能在手机上什么都不装、中间也不经过 OBS 的情况下为 Windows 提供摄像头。其他项目也有 Plugcam 没有的功能：支持更旧的 Android 版本，或者（BestCam）Microsoft Store 应用也能看到的摄像头。信息于 2026 年 9 月依据各项目的 README 核对。Plugcam 所基于的 scrcpy 是命令行工具，Plugcam 把它的摄像头模式做成了带预览和控制项的应用。
 
 | | Plugcam | [VCamdroid](https://github.com/darusc/VCamdroid) | [Android Webcam Project](https://github.com/soubhagyajit/Android-Webcam-Project) | [BestCam](https://github.com/OneLimeStudio/BestCam)（alpha） | [scrcpy](https://github.com/Genymobile/scrcpy) |
 |---|---|---|---|---|---|
 | 手机端应用 | 不需要 | 需要 | 需要 | 需要 | 不需要 |
 | Windows 摄像头 | 是，DirectShow | 是，DirectShow | 是 | 是，Media Foundation（Windows 11 22H2+） | 需借助 OBS 或其他窗口捕获工具；在 Linux 上可作为摄像头 |
-| 连接方式 | USB | USB、Wi-Fi | USB、Wi-Fi | USB | USB、Wi-Fi |
+| 连接方式 | USB、Wi-Fi | USB、Wi-Fi | USB、Wi-Fi | USB | USB、Wi-Fi |
 | Android | 12+ | 7.0+ | 8.0+ | 8.0+ | 摄像头需要 12+ |
 | 电脑端 | 带预览、控制项和初始设置向导的应用 | 应用 | 应用 | Python 脚本（应用尚未发布） | 命令行，窗口里只有画面 |
 | 安装 | 安装程序或便携版 zip，自动更新 | zip，再以管理员身份运行 install.bat | 安装程序 | zip，没有安装程序 | zip 或 winget |
@@ -86,6 +87,7 @@ Plugcam 通过 adb 与手机通信，adb 另占约 2 MB，并与你运行的其�
 1. **安装。** 从[最新版本](https://github.com/Qwinty/plugcam/releases/latest)下载 `Plugcam_x.y.z_x64-setup.exe` 并运行。Windows 会请求一次管理员权限，用于注册摄像头。安装后 Plugcam 会出现在开始菜单中。不想安装？可以下载 `Plugcam_x.y.z_x64-portable.zip`，解压到任意位置并运行 `Plugcam.exe`；首次启动时它会请求一次管理员权限，用于添加摄像头。
 2. **在手机上开启 USB 调试**：*设置 → 关于手机*，连续点按 *版本号* 七次，然后 *设置 → 系统 → 开发者选项 → USB 调试*。Plugcam 的初始设置向导会一步步引导你。
 3. **连接手机**，在手机上点按 *允许*，然后点击 **打开摄像头**。在视频软件中选择 **Plugcam Camera**。
+4. **想摆脱数据线？** 在侧边栏中打开 *手机和 Wi-Fi*，通过二维码或配对码配对手机（*开发者选项 → 无线调试*），或者趁手机还连着数据线时点击 *通过数据线*。手机和电脑需要连接同一个网络。
 
 安装程序暂未签名，SmartScreen 可能会提示“Windows 已保护你的电脑”。点击 *更多信息 → 仍要运行*，或用发布页中附带的 `.sha256` 校验文件。
 
@@ -115,7 +117,7 @@ Plugcam 通过 adb 与手机通信，adb 另占约 2 MB，并与你运行的其�
 ## 系统要求
 
 - Windows 10 或 11，64 位。
-- Android 12 或更高版本的手机（摄像头采集需要），以及能传输数据的 USB 数据线。
+- Android 12 或更高版本的手机（摄像头采集需要），以及能传输数据的 USB 数据线，或与电脑相同的 Wi-Fi 网络。
 - 手机的 USB 驱动通常会通过 Windows 更新自动安装。如果找不到手机，请安装 [Google USB 驱动](https://developer.android.com/studio/run/win-usb) 或手机厂商的驱动。
 
 ## 常见问题
@@ -126,7 +128,7 @@ Plugcam 通过 adb 与手机通信，adb 另占约 2 MB，并与你运行的其�
 
 ### 有没有免费开源的 DroidCam、Iriun 或 iVCam 替代品？
 
-Plugcam 就是一个。它以 Apache-2.0 许可开源，提供最高 4K、30 帧/秒的画面，支持的手机可达 60 帧/秒，没有水印、没有广告、没有时长限制，也无需账号。这些应用有而 Plugcam 暂时还没有的：Wi-Fi 和声音。参见[与同类软件对比](#与同类软件对比)。
+Plugcam 就是一个。它以 Apache-2.0 许可开源，提供最高 4K、30 帧/秒的画面，支持的手机可达 60 帧/秒，可通过 USB 或 Wi-Fi 连接，没有水印、没有广告、没有时长限制，也无需账号。这些应用有而 Plugcam 暂时还没有的：声音。参见[与同类软件对比](#与同类软件对比)。
 
 ### 哪些软件能用 Plugcam Camera？
 
@@ -138,7 +140,7 @@ Plugcam 就是一个。它以 Apache-2.0 许可开源，提供最高 4K、30 帧
 
 ### Plugcam 能用 Wi-Fi 无线连接吗？
 
-暂时不能，目前只支持 USB 数据线。Wi-Fi 是下一步计划。
+可以，从 0.2.0 版开始支持。打开 *手机和 Wi-Fi*，用 *开发者选项 → 无线调试* 中的二维码或六位配对码配对一次手机；或者点击 *通过数据线*，把已用数据线连接的手机切换到 Wi-Fi。配对过的手机出现在网络中时会自动连接。通过 Wi-Fi 传输时，画面延迟始终不超过约半秒：Plugcam 会直接跳到最新画面，而不是让延迟不断累积；网络跟不上时还会降低码率。
 
 ### Plugcam 有声音吗？
 
@@ -156,6 +158,6 @@ Plugcam 需要 Android 12 或更高版本，因为 scrcpy 从 Android 12 起才�
 
 ## 隐私
 
-Plugcam 没有服务器，不会向任何地方发送数据。视频通过数据线从手机传到电脑，只留在你的电脑上。它唯一会从网上获取的是 GitHub 上的版本列表，每天一次，用于检查是否有更新（可在设置中关闭）。设置保存在 `%APPDATA%\io.github.plugcam` 中的 JSON 文件里，便携版则保存在 `data` 文件夹中。
+Plugcam 没有服务器，不会向任何地方发送数据。视频通过数据线或你的局域网从手机传到电脑，只留在你的电脑上。它唯一会从网上获取的是 GitHub 上的版本列表，每天一次，用于检查是否有更新（可在设置中关闭）。设置保存在 `%APPDATA%\io.github.plugcam` 中的 JSON 文件里，便携版则保存在 `data` 文件夹中。
 
 许可证：[Apache-2.0](../../LICENSE)。第三方组件见 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。
