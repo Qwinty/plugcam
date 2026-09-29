@@ -150,7 +150,7 @@ Plugcam 就是一个。它以 Apache-2.0 许可开源，提供 1080p 30 帧/秒�
 
 ### Plugcam 支持哪些安卓手机？
 
-Plugcam 需要 Android 12 或更高版本，因为 scrcpy 从 Android 12 起才能采集摄像头。它基于 OnePlus 11R（Android 15）和 Chrome 开发并测试，其他手机应该也能正常工作。有些手机会列出一些不向第三方应用输出画面的镜头；Plugcam 会发现这种情况，隐藏该镜头并切换到主摄。如果你的手机或软件无法正常工作，请[提交 issue](https://github.com/Qwinty/plugcam/issues)，并注明手机型号和软件。
+Plugcam 需要 Android 12 或更高版本，因为 scrcpy 从 Android 12 起才能采集摄像头。它基于 OnePlus 11R（Android 15）和 Chrome 开发并测试，其他手机应该也能正常工作。有些手机会列出一些不向第三方应用输出画面的镜头；Plugcam 会发现这种情况，隐藏该镜头并切换到主摄。如果你的手机或软件无法正常工作，请[提交 issue](https://github.com/Qwinty/plugcam/issues)，并注明手机型号和软件。在 Plugcam 中，**设置 → 诊断 → 保存报告** 会生成一个可附加的文件。
 
 工作原理、从源码构建和许可证信息，请参阅[英文 README](../../README.md)。
 

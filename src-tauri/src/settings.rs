@@ -39,6 +39,8 @@ pub struct Settings {
     pub check_updates: bool,
     /// The version whose "What's new" was last shown; `None` on a fresh install.
     pub last_seen_version: Option<String>,
+    /// Write a detailed log to a file for bug reports (see `crate::diag`).
+    pub detailed_log: bool,
 }
 
 impl Default for Settings {
@@ -61,6 +63,7 @@ impl Default for Settings {
             broken_cameras: BTreeMap::new(),
             check_updates: true,
             last_seen_version: None,
+            detailed_log: false,
         }
     }
 }
