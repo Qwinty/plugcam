@@ -236,6 +236,11 @@ impl Settings {
             ids.push(camera_id.to_string());
         }
     }
+
+    /// Shows this phone's hidden lenses again; false if none were hidden.
+    pub fn clear_broken(&mut self, model: &str) -> bool {
+        self.broken_cameras.remove(model).is_some()
+    }
 }
 
 /// `%APPDATA%\Plugcam\settings.json` unless the app passes its own folder.
@@ -257,6 +262,8 @@ mod tests {
         s.save(&path).unwrap();
         assert_eq!(Settings::load(&path), s);
         assert!(Settings::load(&path).is_broken("PHK110", "4"));
+        assert!(s.clear_broken("PHK110") && !s.is_broken("PHK110", "4"));
+        assert!(!s.clear_broken("PHK110"));
 
         std::fs::write(&path, r#"{"mirror": true, "rotation": 45, "vcamWidth": 1000, "futureField": 1}"#).unwrap();
         let s = Settings::load(&path);

@@ -53,6 +53,8 @@ pub struct Snapshot {
     pub device: Option<DeviceView>,
     /// Usable lenses of the active phone (broken ones left out).
     pub cameras: Vec<CameraView>,
+    /// Ids of the active phone's lenses hidden after they gave no picture.
+    pub hidden_cameras: Vec<String>,
     /// The lens that is (or would be) used, if the phone's list is known.
     pub selected_camera: Option<String>,
     /// Resolutions the lens captures as they are (all of them while its list is unknown).
@@ -384,6 +386,7 @@ impl Controller {
                     zoom_max: c.zoom.map(|z| z.1),
                 })
                 .collect(),
+            hidden_cameras: hidden_cameras(st, &self.forgotten.lock().unwrap()),
             selected_camera: selected.map(|c| c.id.clone()),
             resolutions,
             fps_options,
@@ -690,6 +693,20 @@ impl Controller {
         let mut st = self.state.lock().unwrap();
         st.notice = None;
         self.publish(&mut st);
+    }
+
+    /// Lists the active phone's hidden lenses again, to pick them by hand.
+    pub fn show_hidden_lenses(&self) {
+        let mut st = self.state.lock().unwrap();
+        let Some(model) = st.active(&self.forgotten.lock().unwrap()).and_then(|d| d.model.clone()) else { return };
+        if st.settings.clear_broken(&model) {
+            log::info!("hidden lenses of {model} are shown again");
+            self.save(&st.settings);
+            if matches!(st.notice, Some(Notice::LensHidden { .. })) {
+                st.notice = None;
+            }
+            self.publish(&mut st);
+        }
     }
 
     pub fn is_camera_on(&self) -> bool {
@@ -1268,11 +1285,20 @@ fn connected_serial(st: &State, id: &str) -> Option<String> {
 
 /// Lenses of the active phone, without the ones that turned out broken.
 fn usable_cameras<'a>(st: &'a State, forgotten: &Forgotten) -> Vec<&'a CameraInfo> {
+    active_cameras(st, forgotten, false)
+}
+
+fn hidden_cameras(st: &State, forgotten: &Forgotten) -> Vec<String> {
+    active_cameras(st, forgotten, true).into_iter().map(|c| c.id.clone()).collect()
+}
+
+/// Lenses of the active phone that are hidden (`broken`) or are not.
+fn active_cameras<'a>(st: &'a State, forgotten: &Forgotten, broken: bool) -> Vec<&'a CameraInfo> {
     let Some(device) = st.active(forgotten) else { return Vec::new() };
     let model = device.model.as_deref().unwrap_or_default();
     st.phones
         .get(&device.serial)
-        .map(|p| p.cameras.iter().filter(|c| !st.settings.is_broken(model, &c.id)).collect())
+        .map(|p| p.cameras.iter().filter(|c| st.settings.is_broken(model, &c.id) == broken).collect())
         .unwrap_or_default()
 }
 

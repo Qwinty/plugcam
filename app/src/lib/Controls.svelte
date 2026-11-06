@@ -206,6 +206,17 @@
         {#snippet icon()}<Aperture size={16} />{/snippet}
       </Select>
     {/if}
+    {#if snap.hiddenCameras.length > 0}
+      <div class="card">
+        <div class="row">
+          <span class="row-text">
+            <span>{t("lens.hidden", { ids: snap.hiddenCameras.join(", ") })}</span>
+            <span class="row-hint">{t("lens.hidden.hint")}</span>
+          </span>
+          <button class="btn small" onclick={api.showHiddenLenses}>{t("lens.hidden.show")}</button>
+        </div>
+      </div>
+    {/if}
   </section>
 
   <section class="section">
@@ -512,6 +523,12 @@
   .icon-btn.small {
     width: 24px;
     height: 24px;
+  }
+  .btn.small {
+    flex: none;
+    min-height: 30px;
+    padding: 0 12px;
+    font-weight: 400;
   }
 
   .tools {

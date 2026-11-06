@@ -83,6 +83,7 @@ pub fn run() {
             zoom,
             set_zoom,
             dismiss_notice,
+            show_hidden_lenses,
             subscribe_preview,
             set_preview_active,
             set_preview_width,
@@ -208,6 +209,11 @@ fn set_zoom(c: Ctl, value: f32) -> Result<(), String> {
 #[tauri::command]
 fn dismiss_notice(c: Ctl) {
     c.dismiss_notice()
+}
+
+#[tauri::command]
+fn show_hidden_lenses(c: Ctl) {
+    c.show_hidden_lenses()
 }
 
 #[tauri::command]

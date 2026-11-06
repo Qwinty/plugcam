@@ -97,6 +97,8 @@ export interface Snapshot {
   status: Status | null;
   device: DeviceView | null;
   cameras: CameraView[];
+  /** Ids of the active phone's lenses hidden after they gave no picture. */
+  hiddenCameras: string[];
   selectedCamera: string | null;
   /** Resolutions the lens captures as they are (all while its list is unknown). */
   resolutions: [number, number][];
@@ -136,6 +138,7 @@ export const setTorch = (on: boolean) => invoke<void>("set_torch", { on });
 export const zoom = (zoomIn: boolean) => invoke<void>("zoom", { zoomIn });
 export const setZoom = (value: number) => invoke<void>("set_zoom", { value });
 export const dismissNotice = () => invoke<void>("dismiss_notice");
+export const showHiddenLenses = () => invoke<void>("show_hidden_lenses");
 export const openUrl = (url: string) => invoke<void>("open_url", { url });
 export const setPreviewActive = (active: boolean) => invoke<void>("set_preview_active", { active });
 /** How wide the picture is shown, in physical pixels, so no wider JPEGs are made. */
