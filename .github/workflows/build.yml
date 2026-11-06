@@ -25,6 +25,10 @@ jobs:
       - name: Build plugcam_cam.dll (x64, Win32)
         run: ./scripts/vcam-build.ps1
 
+      # tauri-build checks that the bundled resources exist, so tests need them too.
+      - name: Stage adb and the camera DLLs
+        run: ./scripts/stage-resources.ps1 -Download
+
       - name: Rust tests
         working-directory: src-tauri
         run: cargo test --release
@@ -37,7 +41,6 @@ jobs:
       # No signing key here: the updater files are only made in the release workflow.
       - name: Installer and portable zip
         run: |
-          ./scripts/stage-resources.ps1 -Download
           '{"bundle":{"createUpdaterArtifacts":false}}' | Out-File -Encoding ascii "$env:RUNNER_TEMP/no-updater.json"
           pnpm tauri build --config "$env:RUNNER_TEMP/no-updater.json"
           ./scripts/portable.ps1

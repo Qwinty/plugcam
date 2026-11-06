@@ -33,6 +33,10 @@ jobs:
       - name: Build plugcam_cam.dll (x64, Win32)
         run: ./scripts/vcam-build.ps1
 
+      # tauri-build checks that the bundled resources exist, so tests need them too.
+      - name: Stage adb and the camera DLLs
+        run: ./scripts/stage-resources.ps1 -Download
+
       - name: Tests
         working-directory: src-tauri
         run: cargo test --release
@@ -45,7 +49,6 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
           if ("v$version" -ne $tag) { throw "tag $tag does not match version $version in tauri.conf.json" }
-          ./scripts/stage-resources.ps1 -Download
           pnpm install --frozen-lockfile
           pnpm tauri build
           ./scripts/portable.ps1
