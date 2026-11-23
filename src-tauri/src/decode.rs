@@ -13,14 +13,15 @@ use std::mem::ManuallyDrop;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use windows::Win32::Foundation::HMODULE;
+use windows::Win32::Foundation::{HMODULE, RECT};
 use windows::Win32::Graphics::Direct3D::D3D_DRIVER_TYPE_HARDWARE;
 use windows::Win32::Graphics::Direct3D11::*;
+use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT;
 use windows::Win32::Media::MediaFoundation::*;
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize};
 use windows::core::Interface;
 
-use crate::frame::{ColorInfo, Nv12Frame};
+use crate::frame::{ColorInfo, Nv12Frame, Prescale};
 
 /// When a GPU decoder last failed. Decoders opened within `GPU_RETRY` of that stay on the CPU,
 /// so a broken driver costs one reconnect, and a passing one (a GPU reset) is not for good.
@@ -66,6 +67,7 @@ pub struct H264Decoder {
     gpu: Option<Gpu>,
     output: Option<OutputFormat>,
     out_sample: Option<IMFSample>,
+    prescale: Option<Prescale>,
     _runtime: MfRuntime,
 }
 
@@ -90,6 +92,18 @@ impl H264Decoder {
     /// True when pictures are decoded on the GPU.
     pub fn is_hardware(&self) -> bool {
         self.gpu.is_some()
+    }
+
+    /// Size of the pictures coming out, once known.
+    pub fn picture_size(&self) -> Option<(u32, u32)> {
+        self.output.map(|f| (f.width, f.height))
+    }
+
+    /// Crop and scale the next pictures on the GPU before they are read back; such pictures
+    /// come out with `prescaled` set. Ignored when decoding on the CPU (the frame converter
+    /// does it then) or when the GPU cannot.
+    pub fn set_prescale(&mut self, prescale: Option<Prescale>) {
+        self.prescale = prescale;
     }
 
     fn open(width: u32, height: u32, use_gpu: bool) -> Result<Self, DecodeError> {
@@ -120,7 +134,7 @@ impl H264Decoder {
             input.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
             mft.SetInputType(0, &input, 0)?;
 
-            let mut decoder = Self { mft, gpu, output: None, out_sample: None, _runtime: runtime };
+            let mut decoder = Self { mft, gpu, output: None, out_sample: None, prescale: None, _runtime: runtime };
             decoder.negotiate_output()?;
             decoder.mft.ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0)?;
             decoder.mft.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)?;
@@ -206,7 +220,7 @@ impl H264Decoder {
         let fmt = self.output.ok_or(DecodeError::NoNv12)?;
         let buffer = unsafe { sample.GetBufferByIndex(0)? };
         if let (Some(gpu), Ok(surface)) = (self.gpu.as_mut(), buffer.cast::<IMFDXGIBuffer>()) {
-            return gpu.read_back(&surface, fmt, on_frame);
+            return gpu.read_back(&surface, fmt, self.prescale, on_frame);
         }
 
         // The UV plane starts after the coded (padded) height, but converters want planes
@@ -234,6 +248,7 @@ impl H264Decoder {
                 uv: &data[uv_start..uv_start + uv_len],
                 uv_stride: fmt.stride,
                 color: fmt.color,
+                prescaled: false,
             });
             buffer.Unlock()?;
         }
@@ -298,6 +313,10 @@ impl H264Decoder {
 struct Gpu {
     context: ID3D11DeviceContext,
     staging: Option<(ID3D11Texture2D, D3D11_TEXTURE2D_DESC)>,
+    /// Crops and scales pictures before they are read back; made on first use.
+    scaler: Option<Scaler>,
+    /// The video processor failed once; do not try again with this decoder.
+    scaler_failed: bool,
     device: ID3D11Device,
     _manager: IMFDXGIDeviceManager,
 }
@@ -330,19 +349,46 @@ impl Gpu {
             let manager = manager.unwrap();
             manager.ResetDevice(&device, token)?;
             mft.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize)?;
-            Ok(Self { context, staging: None, device, _manager: manager })
+            Ok(Self { context, staging: None, scaler: None, scaler_failed: false, device, _manager: manager })
         }
     }
 
-    /// Copies a decoded picture into system memory and hands it to `on_frame`.
-    fn read_back(&mut self, surface: &IMFDXGIBuffer, fmt: OutputFormat, on_frame: &mut dyn FnMut(&Nv12Frame)) -> Result<(), DecodeError> {
+    /// Copies a decoded picture into system memory and hands it to `on_frame`, cropped and
+    /// scaled first when `prescale` asks for it.
+    fn read_back(
+        &mut self,
+        surface: &IMFDXGIBuffer,
+        mut fmt: OutputFormat,
+        prescale: Option<Prescale>,
+        on_frame: &mut dyn FnMut(&Nv12Frame),
+    ) -> Result<(), DecodeError> {
         unsafe {
             let mut texture: Option<ID3D11Texture2D> = None;
             surface.GetResource(&ID3D11Texture2D::IID, &mut texture as *mut _ as *mut *mut c_void)?;
-            let texture = texture.ok_or(DecodeError::NoNv12)?;
-            let index = surface.GetSubresourceIndex()?;
+            let mut texture = texture.ok_or(DecodeError::NoNv12)?;
+            let mut index = surface.GetSubresourceIndex()?;
             let mut desc = D3D11_TEXTURE2D_DESC::default();
             texture.GetDesc(&mut desc);
+
+            let fits = |p: &Prescale| p.x + p.width <= fmt.width && p.y + p.height <= fmt.height;
+            let mut prescaled = false;
+            if let Some(p) = prescale.filter(fits).filter(|_| !self.scaler_failed) {
+                match self.scale(&texture, index, &desc, fmt.color, p) {
+                    Ok(scaled) => {
+                        texture = scaled;
+                        index = 0;
+                        texture.GetDesc(&mut desc);
+                        (fmt.width, fmt.height) = (p.out_width, p.out_height);
+                        prescaled = true;
+                    }
+                    Err(e) => {
+                        // The frame converter crops on the CPU instead.
+                        log::warn!("GPU video processor: {e}; cropping on the CPU");
+                        self.scaler_failed = true;
+                        self.scaler = None;
+                    }
+                }
+            }
 
             let reuse = self.staging.as_ref().is_some_and(|(_, d)| (d.Width, d.Height, d.Format) == (desc.Width, desc.Height, desc.Format));
             if !reuse {
@@ -386,10 +432,137 @@ impl Gpu {
                 uv: &data[uv_start..],
                 uv_stride: pitch as u32,
                 color: fmt.color,
+                prescaled,
             });
             self.context.Unmap(staging, 0);
         }
         Ok(())
+    }
+}
+
+/// The Direct3D 11 video processor set up for one input size, crop and output size.
+struct Scaler {
+    key: (u32, u32, DXGI_FORMAT, Prescale, ColorInfo),
+    video: ID3D11VideoContext,
+    processor: ID3D11VideoProcessor,
+    enumerator: ID3D11VideoProcessorEnumerator,
+    output: ID3D11Texture2D,
+    output_view: ID3D11VideoProcessorOutputView,
+    /// Input views of the decoder's surfaces it has seen: the decoder cycles through a small
+    /// pool, so after the first few frames no view is made per frame.
+    inputs: Vec<(ID3D11Texture2D, u32, ID3D11VideoProcessorInputView)>,
+}
+
+impl Gpu {
+    /// Crops and scales subresource `index` of `texture` into the scaler's output texture
+    /// on the GPU's video engine.
+    unsafe fn scale(
+        &mut self,
+        texture: &ID3D11Texture2D,
+        index: u32,
+        desc: &D3D11_TEXTURE2D_DESC,
+        color: ColorInfo,
+        p: Prescale,
+    ) -> windows::core::Result<ID3D11Texture2D> {
+        unsafe {
+            let key = (desc.Width, desc.Height, desc.Format, p, color);
+            if self.scaler.as_ref().is_none_or(|s| s.key != key) {
+                self.scaler = None;
+                self.scaler = Some(self.new_scaler(key)?);
+            }
+            let s = self.scaler.as_mut().unwrap();
+            let cached = s.inputs.iter().find(|(t, i, _)| t == texture && *i == index).map(|(_, _, v)| v.clone());
+            let input = match cached {
+                Some(v) => v,
+                None => {
+                    let view_desc = D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC {
+                        FourCC: 0,
+                        ViewDimension: D3D11_VPIV_DIMENSION_TEXTURE2D,
+                        Anonymous: D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC_0 { Texture2D: D3D11_TEX2D_VPIV { MipSlice: 0, ArraySlice: index } },
+                    };
+                    let video_device: ID3D11VideoDevice = self.device.cast()?;
+                    let mut view = None;
+                    video_device.CreateVideoProcessorInputView(texture, &s.enumerator, &view_desc, Some(&mut view))?;
+                    let view = view.ok_or_else(|| windows::core::Error::from(windows::Win32::Foundation::E_POINTER))?;
+                    if s.inputs.len() >= 64 {
+                        s.inputs.clear(); // the decoder moved on to new surfaces
+                    }
+                    s.inputs.push((texture.clone(), index, view.clone()));
+                    view
+                }
+            };
+            let input = Some(input);
+            let stream = D3D11_VIDEO_PROCESSOR_STREAM {
+                Enable: true.into(),
+                pInputSurface: ManuallyDrop::new(input),
+                ..Default::default()
+            };
+            let mut streams = [stream];
+            let result = s.video.VideoProcessorBlt(&s.processor, &s.output_view, 0, &streams);
+            drop(ManuallyDrop::take(&mut streams[0].pInputSurface));
+            result?;
+            Ok(s.output.clone())
+        }
+    }
+
+    unsafe fn new_scaler(&self, key: (u32, u32, DXGI_FORMAT, Prescale, ColorInfo)) -> windows::core::Result<Scaler> {
+        let (in_width, in_height, format, p, color) = key;
+        unsafe {
+            let video_device: ID3D11VideoDevice = self.device.cast()?;
+            let video: ID3D11VideoContext = self.context.cast()?;
+            let content = D3D11_VIDEO_PROCESSOR_CONTENT_DESC {
+                InputFrameFormat: D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
+                InputWidth: in_width,
+                InputHeight: in_height,
+                OutputWidth: p.out_width,
+                OutputHeight: p.out_height,
+                Usage: D3D11_VIDEO_USAGE_PLAYBACK_NORMAL,
+                ..Default::default()
+            };
+            let enumerator = video_device.CreateVideoProcessorEnumerator(&content)?;
+            let processor = video_device.CreateVideoProcessor(&enumerator, 0)?;
+
+            let out_desc = D3D11_TEXTURE2D_DESC {
+                Width: p.out_width,
+                Height: p.out_height,
+                MipLevels: 1,
+                ArraySize: 1,
+                Format: format,
+                SampleDesc: windows::Win32::Graphics::Dxgi::Common::DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+                Usage: D3D11_USAGE_DEFAULT,
+                BindFlags: D3D11_BIND_RENDER_TARGET.0 as u32,
+                CPUAccessFlags: 0,
+                MiscFlags: 0,
+            };
+            let mut output = None;
+            self.device.CreateTexture2D(&out_desc, None, Some(&mut output))?;
+            let output = output.unwrap();
+            let view_desc = D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC {
+                ViewDimension: D3D11_VPOV_DIMENSION_TEXTURE2D,
+                Anonymous: D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC_0 { Texture2D: D3D11_TEX2D_VPOV { MipSlice: 0 } },
+            };
+            let mut output_view = None;
+            video_device.CreateVideoProcessorOutputView(&output, &enumerator, &view_desc, Some(&mut output_view))?;
+
+            // Same YUV in and out, so the video processor only crops and scales; no
+            // deinterlacing, denoising or other "enhancements".
+            // D3D11_VIDEO_PROCESSOR_COLOR_SPACE bits: Usage, RGB_Range, YCbCr_Matrix (1 = BT.709),
+            // YCbCr_xvYCC, Nominal_Range (2 bits: 1 = 16-235, 2 = 0-255).
+            let space = D3D11_VIDEO_PROCESSOR_COLOR_SPACE {
+                _bitfield: (color.bt709 as u32) << 2 | (if color.full_range { 2 } else { 1 }) << 4,
+            };
+            video.VideoProcessorSetStreamFrameFormat(&processor, 0, D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
+            video.VideoProcessorSetStreamColorSpace(&processor, 0, &space);
+            video.VideoProcessorSetOutputColorSpace(&processor, &space);
+            video.VideoProcessorSetStreamAutoProcessingMode(&processor, 0, false);
+            let source = RECT { left: p.x as i32, top: p.y as i32, right: (p.x + p.width) as i32, bottom: (p.y + p.height) as i32 };
+            let dest = RECT { left: 0, top: 0, right: p.out_width as i32, bottom: p.out_height as i32 };
+            video.VideoProcessorSetStreamSourceRect(&processor, 0, true, Some(&source));
+            video.VideoProcessorSetStreamDestRect(&processor, 0, true, Some(&dest));
+            video.VideoProcessorSetOutputTargetRect(&processor, true, Some(&dest));
+            log::info!("GPU crop: {}x{} at {},{} of {in_width}x{in_height} -> {}x{}", p.width, p.height, p.x, p.y, p.out_width, p.out_height);
+            Ok(Scaler { key, video, processor, enumerator, output, output_view: output_view.unwrap(), inputs: Vec::new() })
+        }
     }
 }
 

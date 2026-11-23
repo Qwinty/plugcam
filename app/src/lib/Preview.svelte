@@ -2,8 +2,12 @@
   // Live copy of what "Plugcam Camera" shows. Frames come as JPEG over a Tauri channel,
   // and only while the window is visible.
   import { onMount } from "svelte";
-  import { Video, LoaderCircle } from "@lucide/svelte";
+  import { Video, LoaderCircle, Crop as CropIcon } from "@lucide/svelte";
   import { subscribePreview, onPreviewClear, setPreviewActive, setPreviewWidth } from "./api";
+  import type { Crop } from "./api";
+  import CropOverlay from "./CropOverlay.svelte";
+  import { cropEdit, startCropEdit } from "./cropEdit.svelte";
+  import { t } from "./i18n";
 
   let {
     streaming,
@@ -11,6 +15,9 @@
     live,
     empty,
     waiting,
+    crop,
+    frame,
+    picture,
   }: {
     streaming: boolean;
     cameraOn: boolean;
@@ -20,6 +27,12 @@
     empty: { title: string; hint: string };
     /** What it says while the camera is on but no frame has come yet. */
     waiting: { title: string; hint: string };
+    /** The saved crop, for the crop button. */
+    crop: Crop;
+    /** The camera frame's size. */
+    frame: [number, number];
+    /** The phone's picture as shown (after rotation); `null` while not streaming. */
+    picture: [number, number] | null;
   } = $props();
 
   let canvas: HTMLCanvasElement;
@@ -107,6 +120,19 @@
 
   {#if streaming && hasFrame}
     <div class="chip" aria-hidden="true"><span class="dot"></span>{live}</div>
+    {#if !cropEdit.active}
+      <button class="crop-btn" title={t("crop.edit")} aria-label={t("crop.edit")} onclick={() => startCropEdit(crop)}>
+        <CropIcon size={18} />
+      </button>
+    {/if}
+  {/if}
+
+  {#if cropEdit.active}
+    <CropOverlay
+      frameWidth={frame[0]}
+      frameHeight={frame[1]}
+      pictureWidth={picture?.[0] ?? 0}
+      pictureHeight={picture?.[1] ?? 0} />
   {/if}
 </div>
 
@@ -190,6 +216,34 @@
     font-size: 12px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+  }
+  .crop-btn {
+    position: absolute;
+    inset-block-start: 12px;
+    inset-inline-end: 12px;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 16px;
+    background: rgb(0 0 0 / 0.55);
+    backdrop-filter: blur(8px);
+    color: #fff;
+    cursor: pointer;
+    opacity: 0;
+    transition-property: opacity, scale, background-color;
+    transition-duration: 150ms;
+  }
+  .stage:hover .crop-btn,
+  .crop-btn:focus-visible {
+    opacity: 1;
+  }
+  .crop-btn:hover {
+    background: rgb(40 40 40 / 0.8);
+  }
+  .crop-btn:active {
+    scale: 0.94;
   }
   .dot {
     width: 8px;

@@ -11,14 +11,14 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use crate::adb::{self, Adb, Device};
 use crate::decode::H264Decoder;
-use crate::frame::{ColorAdjust, FrameConverter};
+use crate::frame::{ColorAdjust, Crop, FrameConverter};
 use crate::preview::PreviewSlot;
 use crate::scrcpy::protocol::{self, ControlMessage, Packet};
 use crate::scrcpy::server::{self, CameraParams, Session};
@@ -73,6 +73,8 @@ pub struct PipelineConfig {
     pub rotation: u16,
     /// Brightness, contrast, saturation and warmth; can change while streaming.
     pub color: ColorAdjust,
+    /// Sides cut off the picture as shown; can change while streaming.
+    pub crop: Crop,
     /// Record the raw video stream (packets after the codec id) for test fixtures.
     pub dump: Option<PathBuf>,
     /// Where to offer frames for the app window's preview.
@@ -121,6 +123,8 @@ struct Shared {
     rotation: AtomicU16,
     /// `ColorAdjust::to_bits`.
     color: AtomicU32,
+    /// `Crop::to_bits`.
+    crop: AtomicU64,
     /// The phone to use when it is ready; can change without restarting the stream.
     preferred: Mutex<Option<String>>,
     video: Mutex<Option<TcpStream>>,
@@ -140,6 +144,7 @@ impl Pipeline {
             mirror: AtomicBool::new(config.mirror),
             rotation: AtomicU16::new(config.rotation),
             color: AtomicU32::new(config.color.to_bits()),
+            crop: AtomicU64::new(config.crop.to_bits()),
             preferred: Mutex::new(config.serial.clone()),
             video: Mutex::new(None),
             control: Mutex::new(None),
@@ -171,6 +176,10 @@ impl Pipeline {
 
     pub fn set_color(&self, adjust: ColorAdjust) {
         self.shared.color.store(adjust.to_bits(), Ordering::Relaxed);
+    }
+
+    pub fn set_crop(&self, crop: Crop) {
+        self.shared.crop.store(crop.to_bits(), Ordering::Relaxed);
     }
 
     /// The phone to go back to after the stream breaks; the running stream is left alone.
@@ -552,6 +561,10 @@ fn stream(
                 converter.set_mirror(shared.mirror.load(Ordering::Relaxed));
                 converter.set_rotation(shared.rotation.load(Ordering::Relaxed));
                 converter.set_color(ColorAdjust::from_bits(shared.color.load(Ordering::Relaxed)));
+                converter.set_crop(Crop::from_bits(shared.crop.load(Ordering::Relaxed)));
+                if let Some((w, h)) = d.picture_size() {
+                    d.set_prescale(converter.prescale(w, h));
+                }
                 d.decode(&data, pts_us, &mut |picture| match converter.convert(picture) {
                     Ok(bgr) => {
                         vcam.send_frame(bgr);

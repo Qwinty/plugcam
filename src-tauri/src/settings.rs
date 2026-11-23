@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::frame::ColorAdjust;
+use crate::frame::{ColorAdjust, Crop};
 use crate::scrcpy::server::{CameraParams, Facing};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -31,6 +31,8 @@ pub struct Settings {
     pub rotation: u16,
     /// Picture adjustments made on the PC.
     pub color: ColorAdjust,
+    /// Percent cut off each side of the picture as shown (like OBS's crop filter).
+    pub crop: Crop,
     /// `None` = automatic, by resolution and fps.
     pub bitrate_mbps: Option<u32>,
     /// The resolution picked in the window: the virtual camera's size, and the size the phone
@@ -100,6 +102,7 @@ impl Default for Settings {
             mirror: false,
             rotation: 0,
             color: ColorAdjust::default(),
+            crop: Crop::default(),
             bitrate_mbps: None,
             vcam_width: 1920,
             vcam_height: 1080,
@@ -168,6 +171,7 @@ impl Settings {
         }
         self.bitrate_mbps = self.bitrate_mbps.map(|b| b.clamp(4, 40));
         self.color = self.color.clamped();
+        self.crop = self.crop.clamped();
         if self.language.as_deref().is_some_and(|l| !crate::app::i18n::SUPPORTED_LANGUAGES.contains(&l)) {
             self.language = None;
         }
@@ -257,7 +261,8 @@ mod tests {
     fn roundtrip_and_partial_files() {
         let dir = std::env::temp_dir().join(format!("plugcam-settings-{}", std::process::id()));
         let path = dir.join("settings.json");
-        let mut s = Settings { mirror: true, fps: 60, allow_high_speed: true, ..Settings::default() };
+        let crop = crate::frame::Crop::percent(12.25, 0.0, 5.0, 30.0);
+        let mut s = Settings { mirror: true, fps: 60, allow_high_speed: true, crop, ..Settings::default() };
         s.mark_broken("PHK110", "4");
         s.save(&path).unwrap();
         assert_eq!(Settings::load(&path), s);
@@ -270,6 +275,11 @@ mod tests {
         assert!(s.mirror);
         assert_eq!(s.rotation, 0);
         assert_eq!((s.vcam_width, s.vcam_height), (1920, 1080));
+        assert_eq!(s.crop, crate::frame::Crop::default());
+
+        // Crop comes back clamped: opposite sides keep a tenth of the picture.
+        std::fs::write(&path, r#"{"crop": {"left": 70, "right": 50, "top": 3}}"#).unwrap();
+        assert_eq!(Settings::load(&path).crop, crate::frame::Crop::percent(70.0, 20.0, 3.0, 0.0));
 
         std::fs::write(&path, r#"{"wifiPhones": [{"id": "a"}, {"id": "a", "name": "x"}, {"id": ""}]}"#).unwrap();
         assert_eq!(Settings::load(&path).wifi_phones, [WifiPhone { id: "a".into(), name: None }]);

@@ -23,6 +23,13 @@ fn main() {
     let mut r = data.as_slice();
     let mut decoder = None;
     let mut converter = FrameConverter::new(1920, 1080);
+    // PLUGCAM_CROP=left,right,top,bottom (percent) times the converter with a crop.
+    if let Ok(v) = std::env::var("PLUGCAM_CROP") {
+        let p: Vec<f64> = v.split(',').map(|n| n.trim().parse().expect("PLUGCAM_CROP: four numbers")).collect();
+        let crop = plugcam::frame::Crop::percent(p[0], p[1], p[2], p[3]);
+        println!("crop {crop:?}");
+        converter.set_crop(crop);
+    }
     let (mut packets, mut frames) = (0, 0);
     let (mut decode_time, mut convert_time) = (Duration::ZERO, Duration::ZERO);
     let cpu_start = process_cpu();
@@ -47,6 +54,9 @@ fn main() {
                 let d = decoder.as_mut().unwrap();
                 let started = Instant::now();
                 let mut converting = Duration::ZERO;
+                if let Some((w, h)) = d.picture_size() {
+                    d.set_prescale(converter.prescale(w, h));
+                }
                 d.decode(&data, pts_us, &mut |f| {
                     frames += 1;
                     let t = Instant::now();

@@ -151,6 +151,11 @@ fn run(args: Args) -> Result<(), String> {
             mirror,
             rotation: 0,
             color: Default::default(),
+            // PLUGCAM_CROP=left,right,top,bottom (percent), for measuring the crop.
+            crop: std::env::var("PLUGCAM_CROP").ok().map_or_else(Default::default, |v| {
+                let p: Vec<f64> = v.split(',').map(|n| n.trim().parse().unwrap_or(0.0)).chain([0.0; 4]).collect();
+                plugcam::frame::Crop::percent(p[0], p[1], p[2], p[3])
+            }),
             dump: args.dump,
             preview: None,
             on_zoom: None,
