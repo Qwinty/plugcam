@@ -716,11 +716,15 @@ impl Controller {
     /// Before the app exits: stop streaming and remove the camera.
     pub fn shutdown(&self) {
         let _lifecycle = self.lifecycle.lock().unwrap();
-        let old = self.state.lock().unwrap().pipeline.take();
+        // Off first, as in `set_camera_on`: the pipeline's last status ("stopped") then finds
+        // the camera off and is dropped instead of updating the window and the tray.
+        let old = {
+            let mut st = self.state.lock().unwrap();
+            st.camera_on = false;
+            st.pipeline.take()
+        };
         drop(old.and_then(Pipeline::stop));
-        let mut st = self.state.lock().unwrap();
-        st.vcam = None;
-        st.camera_on = false;
+        self.state.lock().unwrap().vcam = None;
     }
 
     /// Portable only: adds "Plugcam Camera" to Windows or removes it, after Windows' consent

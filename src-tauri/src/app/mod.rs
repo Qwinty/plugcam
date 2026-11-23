@@ -6,6 +6,7 @@ mod report;
 mod tray;
 mod updates;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -130,9 +131,22 @@ pub fn show_window(app: &AppHandle) {
     }
 }
 
+/// Ends the app: stops the camera, then exits. Runs off the main thread, which has to stay
+/// free while the camera stops: tray and window updates from other threads wait for it, so
+/// blocking it here could hang the app for good (and froze the window meanwhile).
 pub fn quit(app: &AppHandle) {
-    app.state::<Arc<Controller>>().shutdown();
-    app.exit(0);
+    static QUITTING: AtomicBool = AtomicBool::new(false);
+    if QUITTING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        app.state::<Arc<Controller>>().shutdown();
+        app.exit(0);
+    });
 }
 
 pub(crate) fn set_launch_at_login(app: &AppHandle, on: bool) {
