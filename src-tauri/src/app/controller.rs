@@ -534,6 +534,7 @@ impl Controller {
             mirror: st.settings.mirror,
             rotation: st.settings.rotation,
             color: st.settings.color,
+            crop: st.settings.crop,
             dump: None,
             preview: Some(self.preview.clone()),
             on_zoom: Some(Arc::new(move |z| {
@@ -626,6 +627,7 @@ impl Controller {
             p.set_mirror(new.mirror);
             p.set_rotation(new.rotation);
             p.set_color(new.color);
+            p.set_crop(new.crop);
         }
         if old.launch_at_login != new.launch_at_login {
             super::set_launch_at_login(&self.app, new.launch_at_login);

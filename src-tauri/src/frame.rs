@@ -65,6 +65,108 @@ impl ColorAdjust {
     }
 }
 
+/// How much of the picture to cut off on each side, as it is shown (after rotation and
+/// mirroring), like OBS's crop filter. What is left is scaled to fill the frame with its own
+/// aspect ratio. Kept in hundredths of a percent, so a rectangle drawn on the preview can match
+/// the frame's aspect ratio closely; settings.json has plain percents (`12.5`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Crop {
+    #[serde(serialize_with = "percent_out", deserialize_with = "lenient_crop")]
+    pub left: u16,
+    #[serde(serialize_with = "percent_out", deserialize_with = "lenient_crop")]
+    pub right: u16,
+    #[serde(serialize_with = "percent_out", deserialize_with = "lenient_crop")]
+    pub top: u16,
+    #[serde(serialize_with = "percent_out", deserialize_with = "lenient_crop")]
+    pub bottom: u16,
+}
+
+/// Opposite sides together cut off at most this much (90%): a tenth of the picture stays.
+pub const MAX_CROP: u16 = 9000;
+
+fn lenient_crop<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u16, D::Error> {
+    let v: Option<f64> = serde::Deserialize::deserialize(d)?;
+    Ok(v.filter(|v| v.is_finite()).map_or(0, |v| (v * 100.0).round().clamp(0.0, MAX_CROP as f64) as u16))
+}
+
+fn percent_out<S: serde::Serializer>(v: &u16, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_f64(*v as f64 / 100.0)
+}
+
+/// Whether a `w`x`h` rectangle is within 1% of the `out_w`x`out_h` aspect ratio: then it is
+/// stretched to fill the frame rather than leaving bars a few pixels wide.
+fn fills(w: u32, h: u32, out_w: u32, out_h: u32) -> bool {
+    let (a, b) = (w as u64 * out_h as u64, h as u64 * out_w as u64);
+    a.abs_diff(b) * 100 <= a.max(b)
+}
+
+impl Crop {
+    pub fn is_none(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// From percents, e.g. `Crop::percent(12.5, 12.5, 0.0, 10.0)`.
+    pub fn percent(left: f64, right: f64, top: f64, bottom: f64) -> Self {
+        let c = |v: f64| (v * 100.0).round().clamp(0.0, MAX_CROP as f64) as u16;
+        Self { left: c(left), right: c(right), top: c(top), bottom: c(bottom) }
+    }
+
+    /// Each side within 0..=90% and opposite sides together at most 90% (the second one gives).
+    pub fn clamped(self) -> Self {
+        let pair = |a: u16, b: u16| {
+            let a = a.min(MAX_CROP);
+            (a, b.min(MAX_CROP - a))
+        };
+        let (left, right) = pair(self.left, self.right);
+        let (top, bottom) = pair(self.top, self.bottom);
+        Self { left, right, top, bottom }
+    }
+
+    /// One word, for handing to the pipeline thread without a lock.
+    pub fn to_bits(self) -> u64 {
+        [self.left, self.right, self.top, self.bottom].iter().rev().fold(0, |bits, &v| bits << 16 | v as u64)
+    }
+
+    pub fn from_bits(bits: u64) -> Self {
+        let side = |i: u32| (bits >> (16 * i)) as u16;
+        Self { left: side(0), right: side(1), top: side(2), bottom: side(3) }
+    }
+
+    /// The same cut in the coordinates of the decoded picture, before it is turned clockwise
+    /// by `rotation` and then mirrored.
+    fn in_source(self, rotation: u16, mirror: bool) -> Self {
+        let Self { left, right, top, bottom } = if mirror { Self { left: self.right, right: self.left, ..self } } else { self };
+        match rotation {
+            // Turned clockwise, the source's left edge ends up on top, its top on the right...
+            90 => Self { left: top, top: right, right: bottom, bottom: left },
+            180 => Self { left: right, right: left, top: bottom, bottom: top },
+            270 => Self { left: bottom, top: left, right: top, bottom: right },
+            _ => Self { left, right, top, bottom },
+        }
+    }
+
+    /// The kept rectangle of a `w`x`h` NV12 picture: `(x, y, width, height)`, on even pixels
+    /// so the half-resolution UV plane is cut at the same place.
+    fn rect(self, w: u32, h: u32) -> (u32, u32, u32, u32) {
+        if self.is_none() {
+            return (0, 0, w, h);
+        }
+        let span = |size: u32, start: u16, end: u16| {
+            if start == 0 && end == 0 {
+                return (0, size);
+            }
+            let from = (size as u64 * start as u64 / 10_000) as u32 & !1;
+            let to = size - (size as u64 * end as u64 / 10_000) as u32;
+            let len = (to.saturating_sub(from) & !1).max(2).min(size - from);
+            (from, len)
+        };
+        let (x, cw) = span(w, self.left, self.right);
+        let (y, ch) = span(h, self.top, self.bottom);
+        (x, y, cw, ch)
+    }
+}
+
 /// Lookup tables for `ColorAdjust`: one for Y (unless it stays as it is), one each for U and V.
 struct ColorLuts {
     key: (ColorAdjust, bool),
@@ -113,6 +215,22 @@ pub struct Nv12Frame<'a> {
     pub uv: &'a [u8],
     pub uv_stride: u32,
     pub color: ColorInfo,
+    /// Already cropped and scaled as `FrameConverter::prescale` asked (done on the GPU).
+    pub prescaled: bool,
+}
+
+/// Crop and scale a decoder can do before handing the picture over (the GPU decoder does it
+/// with the video processor, so the CPU gets a picture it does not have to scale): the
+/// rectangle `x, y, width, height` of the decoded picture, stretched to `out_width` x
+/// `out_height`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Prescale {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub out_width: u32,
+    pub out_height: u32,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -151,6 +269,7 @@ pub struct FrameConverter {
     rotation: u16,
     placement: Option<Placement>,
     color: ColorAdjust,
+    crop: Crop,
     luts: Option<ColorLuts>,
     adjusted_y: Vec<u8>,
     adjusted_uv: Vec<u8>,
@@ -174,6 +293,7 @@ impl FrameConverter {
             rotation: 0,
             placement: None,
             color: ColorAdjust::default(),
+            crop: Crop::default(),
             luts: None,
             adjusted_y: Vec::new(),
             adjusted_uv: Vec::new(),
@@ -201,6 +321,39 @@ impl FrameConverter {
         self.color = adjust.clamped();
     }
 
+    /// Sides to cut off, in percent of the picture as shown.
+    pub fn set_crop(&mut self, crop: Crop) {
+        self.crop = crop.clamped();
+    }
+
+    /// Where a `w`x`h` picture (before turning) lands in the frame. A cropped one that is
+    /// within 1% of the frame's aspect ratio fills it.
+    fn place(&self, w: u32, h: u32, cropped: bool) -> Placement {
+        let (w, h) = if matches!(self.rotation, 90 | 270) { (h, w) } else { (w, h) };
+        if cropped && fills(w, h, self.out_width, self.out_height) {
+            return Placement { width: self.out_width, height: self.out_height, x: 0, y: 0 };
+        }
+        fit(w, h, self.out_width, self.out_height)
+    }
+
+    /// What a decoder should do to a `width`x`height` picture before `convert`: crop it and
+    /// scale it to the size it will have in the frame. `None` when nothing is cropped (the
+    /// picture is then scaled on the CPU as before, if at all).
+    pub fn prescale(&self, width: u32, height: u32) -> Option<Prescale> {
+        let (x, y, w, h) = self.crop.in_source(self.rotation, self.mirror).rect(width, height);
+        if (x, y, w, h) == (0, 0, width, height) {
+            return None;
+        }
+        let place = self.place(w, h, true);
+        let turned = matches!(self.rotation, 90 | 270);
+        let (out_width, out_height) = if turned { (place.height, place.width) } else { (place.width, place.height) };
+        // NV12 comes in 2x2 blocks.
+        if out_width % 2 != 0 || out_height % 2 != 0 {
+            return None;
+        }
+        Some(Prescale { x, y, width: w, height: h, out_width, out_height })
+    }
+
     /// The last output frame (black until the first `convert`).
     pub fn output(&self) -> &[u8] {
         &self.out
@@ -213,19 +366,16 @@ impl FrameConverter {
     }
 
     pub fn convert(&mut self, frame: &Nv12Frame) -> Result<&[u8], FrameError> {
-        let (w, h) = (frame.width, frame.height);
-        let (y_plane, uv_plane) = if frame.y_stride == w && frame.uv_stride == w {
-            (frame.y, frame.uv)
+        // The part of the picture that is kept; all of it unless cropped (or it already was).
+        let (cx, cy, w, h) = if frame.prescaled {
+            (0, 0, frame.width, frame.height)
         } else {
-            // yuvutils-rs 0.8 rejects an interleaved UV plane whose stride is wider than the
-            // picture, which is what the decoder gives for 1080-wide video: stride 1088.
-            pack(&mut self.packed_y, frame.y, frame.y_stride, w, h);
-            pack(&mut self.packed_uv, frame.uv, frame.uv_stride, w.div_ceil(2) * 2, h.div_ceil(2));
-            (&self.packed_y[..], &self.packed_uv[..])
+            self.crop.in_source(self.rotation, self.mirror).rect(frame.width, frame.height)
         };
+        let cropped = (cx, cy, w, h) != (0, 0, frame.width, frame.height);
 
         let turned = matches!(self.rotation, 90 | 270);
-        let place = if turned { fit(h, w, self.out_width, self.out_height) } else { fit(w, h, self.out_width, self.out_height) };
+        let place = self.place(w, h, cropped);
         if self.placement != Some(place) {
             // Bars are only painted when the geometry changes; frames overwrite the picture area.
             self.out.fill(0);
@@ -235,14 +385,47 @@ impl FrameConverter {
         // Work at the final size as early as possible: scale the NV12 planes (half the bytes
         // of BGR), convert the colors, and only then rotate the now small picture.
         let (sw, sh) = if turned { (place.height, place.width) } else { (place.width, place.height) };
-        let (y_plane, uv_plane) = if (sw, sh) == (w, h) {
-            (y_plane, uv_plane)
-        } else {
+        let scale = (sw, sh) != (w, h);
+        // The scaler reads the kept rectangle straight from the planes, so cropping costs no
+        // copy. Its filter also reads a few pixels past the rectangle, so it must stay clear
+        // of the padding to the right of a padded picture (rows are the stride wide).
+        let padded = frame.y_stride != frame.width || frame.uv_stride != frame.width.div_ceil(2) * 2;
+        let reach = (w / sw.max(1)).max(h / sh.max(1)) + 2;
+        let in_place = scale
+            && (!padded || cx + w + 2 * reach <= frame.width)
+            && frame.uv_stride % 2 == 0
+            && frame.y.len() >= frame.y_stride as usize * frame.height as usize
+            && frame.uv.len() >= frame.uv_stride as usize * frame.height.div_ceil(2) as usize;
+        let (y_plane, uv_plane) = if in_place {
             let r = &mut self.resizer;
-            resize_plane(r, y_plane, (w, h), &mut self.scaled_y, (sw, sh), PixelType::U8)?;
-            let (cw, ch, scw, sch) = (w.div_ceil(2), h.div_ceil(2), sw.div_ceil(2), sh.div_ceil(2));
-            resize_plane(r, uv_plane, (cw, ch), &mut self.scaled_uv, (scw, sch), PixelType::U8x2)?;
+            let y_src = (frame.y_stride, frame.height);
+            resize_plane(r, frame.y, y_src, (cx, cy, w, h), &mut self.scaled_y, (sw, sh), PixelType::U8)?;
+            let uv_src = (frame.uv_stride / 2, frame.height.div_ceil(2));
+            let uv_rect = (cx / 2, cy / 2, w.div_ceil(2), h.div_ceil(2));
+            let uv_size = (sw.div_ceil(2), sh.div_ceil(2));
+            resize_plane(r, frame.uv, uv_src, uv_rect, &mut self.scaled_uv, uv_size, PixelType::U8x2)?;
             (&self.scaled_y[..], &self.scaled_uv[..])
+        } else {
+            let (y_plane, uv_plane) = if frame.y_stride == w && frame.uv_stride == w && !cropped {
+                (frame.y, frame.uv)
+            } else {
+                // yuvutils-rs 0.8 rejects an interleaved UV plane whose stride is wider than the
+                // picture, which is what the decoder gives for 1080-wide video: stride 1088.
+                // Only reached when the picture is not scaled (or its planes are odd).
+                pack(&mut self.packed_y, frame.y, frame.y_stride, cx, cy, w, h);
+                pack(&mut self.packed_uv, frame.uv, frame.uv_stride, cx, cy / 2, w.div_ceil(2) * 2, h.div_ceil(2));
+                (&self.packed_y[..], &self.packed_uv[..])
+            };
+            if scale {
+                let r = &mut self.resizer;
+                resize_plane(r, y_plane, (w, h), (0, 0, w, h), &mut self.scaled_y, (sw, sh), PixelType::U8)?;
+                let (cw, ch) = (w.div_ceil(2), h.div_ceil(2));
+                let uv_size = (sw.div_ceil(2), sh.div_ceil(2));
+                resize_plane(r, uv_plane, (cw, ch), (0, 0, cw, ch), &mut self.scaled_uv, uv_size, PixelType::U8x2)?;
+                (&self.scaled_y[..], &self.scaled_uv[..])
+            } else {
+                (y_plane, uv_plane)
+            }
         };
 
         // Adjust the colors on the scaled NV12 planes: fewer pixels than the source, and half
@@ -316,11 +499,13 @@ impl FrameConverter {
     }
 }
 
-/// Scales a tight plane of `pixel`s from `src_size` into `dst` at `dst_size`.
+/// Scales the `rect` (x, y, width, height) of a plane of `pixel`s, `src_size` pixels wide
+/// (the stride) and high, into `dst` at `dst_size`.
 fn resize_plane(
     resizer: &mut Resizer,
     src: &[u8],
     src_size: (u32, u32),
+    rect: (u32, u32, u32, u32),
     dst: &mut Vec<u8>,
     dst_size: (u32, u32),
     pixel: PixelType,
@@ -329,7 +514,10 @@ fn resize_plane(
     dst.resize(dst_size.0 as usize * dst_size.1 as usize * pixel.size(), 0);
     let src = ImageRef::new(src_size.0, src_size.1, src, pixel).map_err(|e| err(&e))?;
     let mut dst = Image::from_slice_u8(dst_size.0, dst_size.1, dst, pixel).map_err(|e| err(&e))?;
-    let options = ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear));
+    let mut options = ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear));
+    if rect != (0, 0, src_size.0, src_size.1) {
+        options = options.crop(rect.0 as f64, rect.1 as f64, rect.2 as f64, rect.3 as f64);
+    }
     resizer.resize(&src, &mut dst, &options).map_err(|e| err(&e))
 }
 
@@ -359,11 +547,12 @@ fn rotate<T: Copy + Default>(src: &[T], stride: usize, w: usize, h: usize, degre
     }
 }
 
-/// Copies `rows` rows of `row_len` bytes from a plane with `stride` into a tight buffer.
-fn pack(dst: &mut Vec<u8>, src: &[u8], stride: u32, row_len: u32, rows: u32) {
+/// Copies `rows` rows of `row_len` bytes, starting at byte `x` of row `y`, from a plane with
+/// `stride` into a tight buffer.
+fn pack(dst: &mut Vec<u8>, src: &[u8], stride: u32, x: u32, y: u32, row_len: u32, rows: u32) {
     dst.clear();
-    for row in src.chunks(stride as usize).take(rows as usize) {
-        dst.extend_from_slice(&row[..row_len as usize]);
+    for row in src.chunks(stride as usize).skip(y as usize).take(rows as usize) {
+        dst.extend_from_slice(&row[x as usize..(x + row_len) as usize]);
     }
 }
 
@@ -379,7 +568,7 @@ mod tests {
     }
 
     fn frame<'a>(w: u32, h: u32, y: &'a [u8], uv: &'a [u8]) -> Nv12Frame<'a> {
-        Nv12Frame { width: w, height: h, y, y_stride: w, uv, uv_stride: w, color: ColorInfo::default() }
+        Nv12Frame { width: w, height: h, y, y_stride: w, uv, uv_stride: w, color: ColorInfo::default(), prescaled: false }
     }
 
     fn pixel(buf: &[u8], out_w: u32, x: u32, y: u32) -> [u8; 3] {
@@ -455,7 +644,7 @@ mod tests {
         let (w, h, stride) = (12u32, 4u32, 16u32);
         let y: Vec<u8> = (0..stride * h).map(|i| if i % stride < w { 255 } else { 7 }).collect();
         let uv: Vec<u8> = (0..stride * h / 2).map(|i| if i % stride < w { 128 } else { 7 }).collect();
-        let f = Nv12Frame { width: w, height: h, y: &y, y_stride: stride, uv: &uv, uv_stride: stride, color: ColorInfo::default() };
+        let f = Nv12Frame { width: w, height: h, y: &y, y_stride: stride, uv: &uv, uv_stride: stride, color: ColorInfo::default(), prescaled: false };
         let mut conv = FrameConverter::new(w, h);
         let out = conv.convert(&f).unwrap();
         for x in 0..w {
@@ -571,6 +760,138 @@ mod tests {
             conv.convert(&frame(w, h, &y, &uv)).unwrap();
         }
         println!("1080p with color adjustments: {:.2} ms per frame", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+    }
+
+    /// 16x8 picture of four bands of Y: 0..4 = 40, 4..8 = 80, 8..12 = 160, 12..16 = 240.
+    fn bands() -> (Vec<u8>, Vec<u8>) {
+        let (w, h) = (16u32, 8u32);
+        let y = (0..w * h).map(|i| [40u8, 80, 160, 240][(i % w / 4) as usize]).collect();
+        (y, vec![128u8; (w * h / 2) as usize])
+    }
+
+    fn gray(out: &[u8], out_w: u32, x: u32, y: u32) -> u8 {
+        pixel(out, out_w, x, y)[1]
+    }
+
+    #[test]
+    fn crop_keeps_only_the_rest_and_fills_the_frame() {
+        let (y, uv) = bands();
+        // Cut the outer bands off: 8x8 of the two middle ones, scaled to fill an 8x8 frame.
+        let mut conv = FrameConverter::new(8, 8);
+        conv.set_crop(Crop::percent(25.0, 25.0, 0.0, 0.0));
+        let out = conv.convert(&frame(16, 8, &y, &uv)).unwrap().to_vec();
+        assert_eq!(conv.placement, Some(Placement { width: 8, height: 8, x: 0, y: 0 }));
+        assert!(gray(&out, 8, 0, 4).abs_diff(80) <= 3, "{}", gray(&out, 8, 0, 4));
+        assert!(gray(&out, 8, 7, 4).abs_diff(160) <= 3, "{}", gray(&out, 8, 7, 4));
+
+        // The kept part keeps its shape: 8x8 into a 16x8 frame is pillarboxed.
+        let mut conv = FrameConverter::new(16, 8);
+        conv.set_crop(Crop::percent(25.0, 25.0, 0.0, 0.0));
+        conv.convert(&frame(16, 8, &y, &uv)).unwrap();
+        assert_eq!(conv.placement, Some(Placement { width: 8, height: 8, x: 4, y: 0 }));
+    }
+
+    #[test]
+    fn crop_follows_the_picture_as_shown() {
+        let (y, uv) = bands();
+        // Mirrored, the brightest band is on the left; cropping "left" removes it.
+        let mut conv = FrameConverter::new(12, 8);
+        conv.set_mirror(true);
+        conv.set_crop(Crop::percent(25.0, 0.0, 0.0, 0.0));
+        let out = conv.convert(&frame(16, 8, &y, &uv)).unwrap();
+        assert!(gray(out, 12, 0, 4).abs_diff(160) <= 3, "{}", gray(out, 12, 0, 4));
+        assert!(gray(out, 12, 11, 4).abs_diff(40) <= 3, "{}", gray(out, 12, 11, 4));
+
+        // Turned 90 degrees clockwise, the source's left (darkest) band is on top; cropping "top"
+        // removes it, so the top row of the 8x12 frame is the 80 band.
+        let mut conv = FrameConverter::new(8, 12);
+        conv.set_rotation(90);
+        conv.set_crop(Crop::percent(0.0, 0.0, 25.0, 0.0));
+        let out = conv.convert(&frame(16, 8, &y, &uv)).unwrap();
+        assert!(gray(out, 8, 4, 0).abs_diff(80) <= 3, "{}", gray(out, 8, 4, 0));
+        assert!(gray(out, 8, 4, 11).abs_diff(240) <= 3, "{}", gray(out, 8, 4, 11));
+
+        // Turned 270, the source's left band is at the bottom.
+        let mut conv = FrameConverter::new(8, 12);
+        conv.set_rotation(270);
+        conv.set_crop(Crop::percent(0.0, 0.0, 0.0, 25.0));
+        let out = conv.convert(&frame(16, 8, &y, &uv)).unwrap();
+        assert!(gray(out, 8, 4, 11).abs_diff(80) <= 3, "{}", gray(out, 8, 4, 11));
+        assert!(gray(out, 8, 4, 0).abs_diff(240) <= 3, "{}", gray(out, 8, 4, 0));
+    }
+
+    #[test]
+    fn scaling_a_padded_picture_ignores_the_padding() {
+        // 40x4 white in stride-48 planes with dark garbage in the padding, scaled down: whole
+        // (copied first) and cropped (straight from the planes, or copied near the padding).
+        let (w, h, stride) = (40u32, 4u32, 48u32);
+        let y: Vec<u8> = (0..stride * h).map(|i| if i % stride < w { 255 } else { 0 }).collect();
+        let uv: Vec<u8> = (0..stride * h / 2).map(|i| if i % stride < w { 128 } else { 0 }).collect();
+        let f = Nv12Frame { width: w, height: h, y: &y, y_stride: stride, uv: &uv, uv_stride: stride, color: ColorInfo::default(), prescaled: false };
+        let crops = [Crop::default(), Crop::percent(20.0, 0.0, 10.0, 0.0), Crop::percent(0.0, 50.0, 0.0, 0.0)];
+        for crop in crops {
+            let mut conv = FrameConverter::new(10, 2);
+            conv.set_crop(crop);
+            let out = conv.convert(&f).unwrap().to_vec();
+            let p = conv.placement.unwrap();
+            for x in p.x..p.x + p.width {
+                assert!(close(pixel(&out, 10, x, p.y), [255, 255, 255]), "{crop:?} x={x}: {:?}", pixel(&out, 10, x, p.y));
+            }
+        }
+    }
+
+    #[test]
+    fn prescaled_pictures_are_not_cropped_again() {
+        let mut conv = FrameConverter::new(16, 8);
+        assert_eq!(conv.prescale(32, 16), None);
+        conv.set_crop(Crop::percent(25.0, 25.0, 0.0, 0.0));
+        let p = conv.prescale(32, 16).unwrap();
+        assert_eq!(p, Prescale { x: 8, y: 0, width: 16, height: 16, out_width: 8, out_height: 8 });
+
+        // The decoder hands over the middle bands already cropped and scaled: 8x8 of 80 | 160.
+        let y: Vec<u8> = (0..64).map(|i| if i % 8 < 4 { 80 } else { 160 }).collect();
+        let uv = vec![128u8; 32];
+        let f = Nv12Frame { prescaled: true, ..frame(8, 8, &y, &uv) };
+        let out = conv.convert(&f).unwrap().to_vec();
+        assert_eq!(conv.placement, Some(Placement { width: 8, height: 8, x: 4, y: 0 }));
+        assert!(gray(&out, 16, 4, 4).abs_diff(80) <= 3 && gray(&out, 16, 11, 4).abs_diff(160) <= 3);
+
+        // Turned, the prescaled size is before turning.
+        conv.set_rotation(90);
+        conv.set_crop(Crop::percent(0.0, 0.0, 50.0, 0.0));
+        assert_eq!(conv.prescale(32, 16), Some(Prescale { x: 16, y: 0, width: 16, height: 16, out_width: 8, out_height: 8 }));
+    }
+
+    #[test]
+    fn a_crop_close_to_the_frame_shape_fills_it() {
+        let (y, uv) = solid(1920, 1080, [128, 128, 128]);
+        let mut conv = FrameConverter::new(1920, 1080);
+        // 12.5% off each side is exactly 16:9; 12.4/12.6 is a few pixels off, still filled.
+        for crop in [Crop::percent(12.5, 12.5, 12.5, 12.5), Crop::percent(12.4, 12.6, 12.5, 12.5)] {
+            conv.set_crop(crop);
+            conv.convert(&frame(1920, 1080, &y, &uv)).unwrap();
+            assert_eq!(conv.placement, Some(Placement { width: 1920, height: 1080, x: 0, y: 0 }), "{crop:?}");
+            assert_eq!(conv.prescale(1920, 1080).map(|p| (p.out_width, p.out_height)), Some((1920, 1080)));
+        }
+        // A clearly different shape keeps its aspect ratio.
+        conv.set_crop(Crop::percent(25.0, 25.0, 0.0, 0.0));
+        conv.convert(&frame(1920, 1080, &y, &uv)).unwrap();
+        assert_eq!(conv.placement, Some(Placement { width: 960, height: 1080, x: 480, y: 0 }));
+    }
+
+    #[test]
+    fn crop_rect_is_even_and_inside() {
+        let c = Crop::percent(10.0, 33.0, 1.0, 0.0);
+        assert_eq!(c.rect(1920, 1080), (192, 10, 1094, 1070));
+        assert_eq!(Crop::percent(90.0, 0.0, 0.0, 0.0).rect(7, 5), (6, 0, 1, 5));
+        assert_eq!(Crop::default().rect(1921, 1081), (0, 0, 1921, 1081));
+        let wide = Crop::percent(50.0, 50.0, 80.0, 80.0).clamped();
+        assert_eq!(wide, Crop::percent(50.0, 40.0, 80.0, 10.0));
+        let odd: Crop = serde_json::from_str(r#"{"left": 120, "right": -3, "top": 12.625, "bottom": null}"#).unwrap();
+        assert_eq!(odd, Crop { left: 9000, right: 0, top: 1263, bottom: 0 });
+        assert_eq!(serde_json::to_string(&odd).unwrap(), r#"{"left":90.0,"right":0.0,"top":12.63,"bottom":0.0}"#);
+        assert_eq!(Crop::from_bits(wide.to_bits()), wide);
+        assert_eq!(Crop::from_bits(odd.to_bits()), odd);
     }
 
     #[test]

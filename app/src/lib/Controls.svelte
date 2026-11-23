@@ -29,6 +29,7 @@
   import Select from "./Select.svelte";
   import Toggle from "./Toggle.svelte";
   import ColorControls from "./ColorControls.svelte";
+  import CropControls from "./CropControls.svelte";
 
   let {
     snap,
@@ -238,6 +239,7 @@
       </div>
       <Toggle label={t("ctl.mirror")} checked={s.mirror} onchange={(v) => api.updateSettings({ mirror: v })} />
       <ColorControls value={s.color} language={snap.language} />
+      <CropControls value={s.crop} streaming={snap.cameraOn && snap.status?.kind === "streaming"} />
     </div>
   </section>
 

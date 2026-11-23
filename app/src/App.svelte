@@ -58,6 +58,13 @@
     return { title: info.title, hint: info.hint };
   }
 
+  /** The phone's picture size as the camera shows it: turned with the rotation. */
+  function shownPicture(s: Snapshot): [number, number] | null {
+    if (s.status?.kind !== "streaming") return null;
+    const { width, height } = s.status;
+    return s.settings.rotation === 90 || s.settings.rotation === 270 ? [height, width] : [width, height];
+  }
+
   function waitingStage(s: Snapshot) {
     const kind = s.status?.kind;
     if (s.device?.state === "device" && kind !== "error" && kind !== "noPicture" && kind !== "reconnecting") {
@@ -80,7 +87,10 @@
             streaming={snap.cameraOn && snap.status?.kind === "streaming"}
             live={snap.fps > 0 ? t("live.fps", { fps: Math.round(snap.fps) }) : t("live")}
             empty={emptyStage(snap)}
-            waiting={waitingStage(snap)} />
+            waiting={waitingStage(snap)}
+            crop={snap.settings.crop}
+            frame={[snap.settings.vcamWidth, snap.settings.vcamHeight]}
+            picture={shownPicture(snap)} />
           <p class="apps">{t("preview.inApps")}</p>
         </div>
         <aside>

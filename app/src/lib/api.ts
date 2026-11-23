@@ -14,6 +14,8 @@ export interface Settings {
   mirror: boolean;
   rotation: 0 | 90 | 180 | 270;
   color: ColorAdjust;
+  /** Percent cut off each side of the picture as shown; 0 everywhere = the whole picture. */
+  crop: Crop;
   bitrateMbps: number | null;
   /** The chosen resolution: the virtual camera's size, and the capture size when the lens has it. */
   vcamWidth: number;
@@ -38,6 +40,14 @@ export interface ColorAdjust {
   contrast: number;
   saturation: number;
   warmth: number;
+}
+
+/** Percent of the shown picture cut off each side; opposite sides add up to at most 90. */
+export interface Crop {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
 }
 
 export type Status =
